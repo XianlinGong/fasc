@@ -1,0 +1,25 @@
+# It is not recommended to modify this file in-place, because it will
+# be overwritten during package upgrades. If you want to add further
+# options or overwrite existing ones then use
+# $ systemctl edit fabcoind.service
+# See "man systemd.service" for details.
+
+# Note that almost all daemon options could be specified in
+# /etc/fabcoin/fabcoin.conf
+
+[Unit]
+Description=Fabcoin daemon
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/fabcoind -daemon -conf=/etc/fabcoin/fabcoin.conf -pid=/run/fabcoind/fabcoind.pid
+# Creates /run/fabcoind owned by fabcoin
+RuntimeDirectory=fabcoind
+User=fabcoin
+Type=forking
+PIDFile=/run/fabcoind/fabcoind.pid
+Restart=on-failure
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
