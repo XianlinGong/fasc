@@ -232,15 +232,12 @@ public:
     struct Options {
         Options();
         size_t nBlockMaxWeight;
-        size_t nBlockMaxSize;
         CFeeRate blockMinFeeRate;
     };
 
-    BlockAssembler(const CChainParams& params);
+    explicit BlockAssembler(const CChainParams& params);
     BlockAssembler(const CChainParams& params, const Options& options);
 
-    /**  Construct a new block template with coinbase to scriptPubKeyIn */
-    //??? std::unique_ptr<CBlockTemplate> CreateNewBlock(const CScript& scriptPubKeyIn, bool fMineWitnessTx=true);
 ///////////////////////////////////////////// // fabcoin
     ByteCodeExecResult bceResult;
     uint64_t minGasPrice = 1;
