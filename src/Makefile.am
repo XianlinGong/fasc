@@ -281,11 +281,14 @@ libfabcoin_wallet_a_SOURCES = \
   wallet/crypter.cpp \
   wallet/db.cpp \
   wallet/feebumper.cpp \
+  wallet/fees.cpp \
+  wallet/init.cpp \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/wallet.cpp \
   wallet/walletdb.cpp \
-  policy/rbf.cpp \
+  wallet/walletutil.cpp \
+  pos.cpp \
   $(FABCOIN_CORE_H)
 
 # crypto primitives library
