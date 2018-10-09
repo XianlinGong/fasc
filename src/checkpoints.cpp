@@ -8,10 +8,11 @@
 #include <chainparams.h>
 #include <reverse_iterator.h>
 #include <validation.h>
+#include <uint256.h>
 
 #include <stdint.h>
 
-static const int nCheckpointSpan = 500;
+static const int nCheckpointSpan = 800;
 
 namespace Checkpoints {
 

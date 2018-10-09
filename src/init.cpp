@@ -460,6 +460,23 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-debug=<category>", strprintf(_("Output debugging information (default: %u, supplying <category> is optional)"), 0) + ". " +
         _("If <category> is not supplied or if <category> = 1, output all debugging information.") + " " + _("<category> can be:") + " " + ListLogCategories() + ".");
     strUsage += HelpMessageOpt("-debugexclude=<category>", strprintf(_("Exclude debugging information for a category. Can be used in conjunction with -debug=1 to output debug logs for all categories except one or more specified categories.")));
+
+#ifdef ENABLE_WALLET
+    strUsage += HelpMessageOpt("-gen", strprintf(_("Generate coins (default: %u)"), 0));
+    strUsage += HelpMessageOpt("-genproclimit=<n>", strprintf(_("Set the number of threads for coin generation if enabled (-1 = all cores, default: %d)"), 1));
+
+#ifdef ENABLE_GPU
+    strUsage += HelpMessageOpt("-G", _("Enable GPU mining (default: false)"));
+    strUsage += HelpMessageOpt("-platform=<id>", _("If -G is enabled this specifies the GPU platform number to use (default: 0)"));
+    strUsage += HelpMessageOpt("-device=<id>", _("If -G is enabled this specifies the GPU device number to use (default: 0)"));
+    strUsage += HelpMessageOpt("-allgpu", _("If -G is enabled this will mine on all available GPU platforms and devices (default: false)"));
+    strUsage += HelpMessageOpt("-forcenolimit", _("Do not limit thread count per GPU by memory limits. (default: false)"));
+#endif
+#ifdef USE_CUDA
+    strUsage += HelpMessageOpt("-CUDA", _("Enable NVIDIA CUDA mining (default: false)"));
+#endif
+#endif
+
     strUsage += HelpMessageOpt("-help-debug", _("Show all debugging options (usage: --help -help-debug)"));
     strUsage += HelpMessageOpt("-logips", strprintf(_("Include IP addresses in debug output (default: %u)"), DEFAULT_LOGIPS));
     strUsage += HelpMessageOpt("-logtimestamps", strprintf(_("Prepend debug output with timestamp (default: %u)"), DEFAULT_LOGTIMESTAMPS));
@@ -509,6 +526,8 @@ std::string HelpMessage(HelpMessageMode mode)
     if (showDebug)
         strUsage += HelpMessageOpt("-blockversion=<n>", "Override block version to test forking scenarios");
 
+    strUsage += HelpMessageOpt("-blockmaxconflict=<n>", strprintf(_("Set max conflicted blocks can be overwrited, default: %d )"), DEFAULT_BLOCK_MAX_CONFLICT ));
+
     strUsage += HelpMessageGroup(_("RPC server options:"));
     strUsage += HelpMessageOpt("-server", _("Accept command line and JSON-RPC commands"));
     strUsage += HelpMessageOpt("-rest", strprintf(_("Accept public REST requests (default: %u)"), DEFAULT_REST_ENABLE));
@@ -532,7 +551,7 @@ std::string HelpMessage(HelpMessageMode mode)
 std::string LicenseInfo()
 {
     const std::string URL_SOURCE_CODE = "<https://github.com/blockchaingate/fabcoin>";
-    const std::string URL_WEBSITE = "<https://fabcoins.info>";
+    const std::string URL_WEBSITE = "<https://fabcoin.pro>";
 
     return CopyrightHolders(strprintf(_("Copyright (C) %i"), COPYRIGHT_YEAR) + " ") + "\n" +
            "\n" +
@@ -1566,7 +1585,7 @@ bool AppInitMain()
                     pstorageresult->wipeResults();
                 }
 
-                if(chainActive.Tip() != nullptr){
+                if(chainActive.Tip() != nullptr && !chainActive.Tip()->hashStateRoot.IsNull() && !chainActive.Tip()->hashUTXORoot.IsNull() ){
                     globalState->setRoot(uintToh256(chainActive.Tip()->hashStateRoot));
                     globalState->setRootUTXO(uintToh256(chainActive.Tip()->hashUTXORoot));
                 } else {
@@ -1823,6 +1842,23 @@ bool AppInitMain()
     if (!connman.Start(scheduler, connOptions)) {
         return false;
     }
+
+#ifdef ENABLE_WALLET
+    // Generate coins in the background
+    GPUConfig conf;
+
+    conf.forceGenProcLimit = gArgs.GetBoolArg("-forcenolimit", false);
+    conf.selGPU = gArgs.GetArg("-device", 0);
+#ifdef ENABLE_GPU    
+    conf.allGPU = gArgs.GetBoolArg("-allgpu", 0);
+    conf.sel_platform = gArgs.GetArg("-platform", 0);
+    conf.useCUDA   = gArgs.GetBoolArg("-CUDA", 0);
+    conf.useGPU = gArgs.GetBoolArg("-G", false) || gArgs.GetBoolArg("-GPU", false);
+#else
+    conf.useGPU = false;
+#endif
+    GenerateFabcoins(gArgs.GetBoolArg("-gen", DEFAULT_GENERATE), gArgs.GetArg("-genproclimit", DEFAULT_GENERATE_THREADS), chainparams, conf);
+#endif
 
     // ********************************************************* Step 12: finished
 

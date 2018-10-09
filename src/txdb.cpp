@@ -459,20 +459,24 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nUndoPos       = diskindex.nUndoPos;
                 pindexNew->nVersion       = diskindex.nVersion;
                 pindexNew->hashMerkleRoot = diskindex.hashMerkleRoot;
+                memcpy(pindexNew->nReserved, diskindex.nReserved, sizeof(pindexNew->nReserved));
                 pindexNew->nTime          = diskindex.nTime;
                 pindexNew->nBits          = diskindex.nBits;
                 pindexNew->nNonce         = diskindex.nNonce;
                 pindexNew->nMoneySupply   = diskindex.nMoneySupply;
+                pindexNew->nSolution      = diskindex.nSolution;
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->hashStateRoot  = diskindex.hashStateRoot; // fabcoin
                 pindexNew->hashUTXORoot   = diskindex.hashUTXORoot; // fabcoin
-                pindexNew->nStakeModifier = diskindex.nStakeModifier;
-                pindexNew->prevoutStake   = diskindex.prevoutStake;
-                pindexNew->vchBlockSig    = diskindex.vchBlockSig; // fabcoin
 
-                if (!CheckIndexProof(*pindexNew, Params().GetConsensus()))
-                    return error("%s: CheckIndexProof failed: %s", __func__, pindexNew->ToString());
+                //pindexNew->nStakeModifier = diskindex.nStakeModifier;
+                //pindexNew->prevoutStake   = diskindex.prevoutStake;
+                //pindexNew->vchBlockSig    = diskindex.vchBlockSig; // fabcoin
+
+                // TODO(h4x3rotab): Check Equihash solution? Not sure why Zcash doesn't do it here.
+                if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits,  consensusParams, false))
+                    return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
 
                 // NovaCoin: build setStakeSeen
                 if (pindexNew->IsProofOfStake())

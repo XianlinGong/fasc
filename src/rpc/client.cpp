@@ -33,6 +33,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "generatetoaddress", 2, "maxtries" },
     { "getnetworkhashps", 0, "nblocks" },
     { "getnetworkhashps", 1, "height" },
+    { "getblocksubsidy", 0, "height" },
     { "sendtoaddress", 1, "amount" },
     { "sendtoaddress", 4, "subtractfeefromamount" },
     { "sendtoaddress", 5 , "replaceable" },
@@ -156,6 +157,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "logging", 1, "exclude" },
     { "disconnectnode", 1, "nodeid" },
     { "addwitnessaddress", 1, "p2sh" },
+    { "callcontract",   3, "gasLimit" },
     { "createcontract", 1, "gasLimit" },
     { "createcontract", 2, "gasPrice" },
     { "createcontract", 4, "broadcast" },
@@ -184,6 +186,9 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "echojson", 9, "arg9" },
     { "rescanblockchain", 0, "start_height"},
     { "rescanblockchain", 1, "stop_height"},
+    { "setgenerate", 0, "generate"},
+    { "setgenerate", 1, "genproclimit" },
+    { "getgenerate", 0, "generate"},
 };
 
 class CRPCConvertTable

@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2016 The Bitcoin Core developers
+# Copyright (c) 2015-2017 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,7 +7,7 @@ BENCH_SRCDIR = bench
 BENCH_BINARY = bench/bench_fabcoin$(EXEEXT)
 
 RAW_BENCH_FILES = \
-  bench/data/blockbench.raw
+  bench/data/block413567.raw
 GENERATED_BENCH_FILES = $(RAW_BENCH_FILES:.raw=.raw.h)
 
 bench_bench_fabcoin_SOURCES = \
@@ -54,7 +54,8 @@ bench_bench_fabcoin_LDADD = \
   $(LIBEVMCORE) \
   $(LIBDEVCRYPTO) \
   $(LIBCRYPTOPP) \
-  $(LIBSCRYIPT)
+  $(LIBSCRYIPT) \
+  $(LIBEQUIHASH_LIBS)
 
 if ENABLE_ZMQ
 bench_bench_fabcoin_LDADD += $(LIBFABCOIN_ZMQ) $(ZMQ_LIBS)
@@ -72,7 +73,7 @@ CLEAN_FABCOIN_BENCH = bench/*.gcda bench/*.gcno $(GENERATED_BENCH_FILES)
 
 CLEANFILES += $(CLEAN_FABCOIN_BENCH)
 
-bench/checkblock.cpp: bench/data/blockbench.raw.h
+bench/checkblock.cpp: bench/data/block413567.raw.h
 
 fabcoin_bench: $(BENCH_BINARY)
 

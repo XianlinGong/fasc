@@ -7,6 +7,7 @@
 #define FABCOIN_MINER_H
 
 #include <primitives/block.h>
+#include <libgpusolver/gpuconfig.h>
 #include <txmempool.h>
 
 #include <stdint.h>
@@ -21,6 +22,9 @@ class CChainParams;
 class CScript;
 
 namespace Consensus { struct Params; };
+
+static const bool DEFAULT_GENERATE = false;
+static const int DEFAULT_GENERATE_THREADS = 1;
 
 static const bool DEFAULT_PRINTPRIORITY = false;
 
@@ -228,12 +232,15 @@ public:
     struct Options {
         Options();
         size_t nBlockMaxWeight;
+        size_t nBlockMaxSize;
         CFeeRate blockMinFeeRate;
     };
 
-    explicit BlockAssembler(const CChainParams& params);
+    BlockAssembler(const CChainParams& params);
     BlockAssembler(const CChainParams& params, const Options& options);
 
+    /**  Construct a new block template with coinbase to scriptPubKeyIn */
+    //??? std::unique_ptr<CBlockTemplate> CreateNewBlock(const CScript& scriptPubKeyIn, bool fMineWitnessTx=true);
 ///////////////////////////////////////////// // fabcoin
     ByteCodeExecResult bceResult;
     uint64_t minGasPrice = 1;
@@ -268,6 +275,7 @@ private:
 
     /** Rebuild the coinbase/coinstake transaction to account for new gas refunds **/
     void RebuildRefundTransaction();
+
     // helper functions for addPackageTxs()
     /** Remove confirmed (inBlock) entries from given set */
     void onlyUnconfirmed(CTxMemPool::setEntries& testSet);
@@ -291,6 +299,10 @@ private:
 
 /** Generate a new block, without valid proof-of-work */
 void StakeFabcoins(bool fStake, CWallet *pwallet);
+
+/** Run the miner threads */
+void GenerateFabcoins(bool fGenerate, int nThreads, const CChainParams& chainparams);
+void GenerateFabcoins(bool fGenerate, int nThreads, const CChainParams& chainparams, GPUConfig conf);
 
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned int& nExtraNonce);

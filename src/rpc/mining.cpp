@@ -11,6 +11,7 @@
 #include <consensus/params.h>
 #include <consensus/validation.h>
 #include <core_io.h>
+#include <crypto/equihash.h>
 #include <init.h>
 #include <validation.h>
 #include <miner.h>
@@ -27,6 +28,11 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
+#ifdef ENABLE_GPU
+#include <libgpusolver/libgpusolver.h>
+#include <libgpusolver/libclwrapper.h>
+#endif
+
 #include <timedata.h>
 #ifdef ENABLE_WALLET
 #include <wallet/wallet.h>
@@ -34,6 +40,10 @@
 #endif
 #include <memory>
 #include <stdint.h>
+#include <boost/assign/list_of.hpp>
+#include <boost/shared_ptr.hpp>
+
+#include <univalue.h>
 
 unsigned int ParseConfirmTarget(const UniValue& value)
 {
@@ -87,6 +97,8 @@ UniValue GetNetworkHashPS(int lookup, int height) {
     return workDiff.getdouble() / timeDiff;
 }
 
+// TODO(h4x3rotab): Implement RPC `getlocalsolps`, and maybe `getnetworksolps` as a alias of `getnetworkhashps`.
+
 UniValue getnetworkhashps(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 2)
@@ -109,11 +121,62 @@ UniValue getnetworkhashps(const JSONRPCRequest& request)
     return GetNetworkHashPS(!request.params[0].isNull() ? request.params[0].get_int() : 120, !request.params[1].isNull() ? request.params[1].get_int() : -1);
 }
 
+
+#if defined(ENABLE_GPU) &&  defined(USE_CUDA)
+#include <../cuda/eqcuda.hpp>
+
+static bool cb_cancel() 
+{
+    return false;
+}
+
+static bool cb_validate(std::vector<unsigned char> sols, unsigned char *pblockdata, int thrid)
+{
+    bool ret = false;
+    CBlock *pblock = (CBlock *)pblockdata;  
+
+    do 
+    {
+        pblock->nSolution = sols;
+        CChainParams chainparams = Params();
+        arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
+        if (UintToArith256(pblock->GetHash()) > hashTarget) 
+        {
+            break;
+        }
+        // Found a solution
+        SetThreadPriority(THREAD_PRIORITY_NORMAL);
+        
+        if (!CheckEquihashSolution(pblock, chainparams ))
+        {
+            LogPrintf("CheckBlockHeader(): Equihash solution invalid at height %d\n", pblock->nHeight);
+            break;
+        }
+
+        // Check proof of work matches claimed amount
+        if (!CheckProofOfWork(pblock->GetHash(), pblock->nBits, chainparams.GetConsensus(), false)) 
+        {
+            CBlock dumpBlock(*pblock); 
+            LogPrintf("Dump block: Height %d, others ==   %s \n", pblock->nHeight, dumpBlock.ToString());
+            break;
+        }
+
+        SetThreadPriority(THREAD_PRIORITY_LOWEST);
+        ret = true;
+    }while(0);
+
+    return ret;
+}
+#endif
+
+
 UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGenerate, uint64_t nMaxTries, bool keepScript)
 {
     static const int nInnerLoopCount = 0x10000;
     int nHeightEnd = 0;
     int nHeight = 0;
+    int nCounter = 0;
+    int headerlen = 0;
 
     {   // Don't keep cs_main locked
         LOCK(cs_main);
@@ -122,24 +185,141 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
     }
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
+    const CChainParams& params = Params();
+    unsigned int n = params.EquihashN();
+    unsigned int k = params.EquihashK();
+
+    GPUConfig conf;
+    memset(&conf,0,sizeof(GPUConfig));
+
+    conf.useGPU = gArgs.GetBoolArg("-G", false) || gArgs.GetBoolArg("-GPU", false);
+    conf.selGPU = gArgs.GetArg("-deviceid", 0);
+    conf.allGPU = gArgs.GetBoolArg("-allgpu", 0);
+    conf.forceGenProcLimit = gArgs.GetBoolArg("-forcenolimit", false);
+
+    uint8_t * header = NULL;
+#ifdef ENABLE_GPU
+    GPUSolver * g_solver = NULL;
+    if( conf.useGPU )
+    {        
+        header = (uint8_t *) calloc(CBlockHeader::HEADER_NEWSIZE, sizeof(uint8_t));
+        LogPrint(BCLog::POW, "Using Equihash solver GPU\n");
+    }    
+#endif
+
     while (nHeight < nHeightEnd)
     {
         std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript, true, false, nullptr, 0, GetAdjustedTime()+POW_MINER_MAX_TIME));
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
+        nCounter = 0;
         CBlock *pblock = &pblocktemplate->block;
         {
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
+        /* legacy mining
+        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus(), false)) {
             ++pblock->nNonce;
             --nMaxTries;
+        */
+
+        n = params.EquihashN(pblock->nHeight);
+        k = params.EquihashK(pblock->nHeight);
+
+        LogPrintf("Using Equihash solver with n = %u, k = %u\n", n, k);
+
+        if (pblock->nHeight < (uint32_t)params.GetConsensus().FABHeight)
+        {
+            // Solve sha256d.
+            while (nMaxTries > 0 && (int)pblock->nNonce.GetUint64(0) < nInnerLoopCount &&
+                   !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus(), false)) 
+            {
+                pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
+                --nMaxTries;
+            }
+            if ((int)pblock->nNonce.GetUint64(0) == nInnerLoopCount) 
+                continue;
+        
+        } 
+        else
+        {
+            // Solve Equihash.
+            // I = the block header minus nonce and solution.
+            CEquihashInput I{*pblock};
+            CDataStream ss(SER_NETWORK, PROTOCOL_VERSION );
+            ss << I;
+
+            crypto_generichash_blake2b_state eh_state;
+            if( conf.useGPU )
+            {
+#ifdef ENABLE_GPU
+                memcpy(header, &ss[0], ss.size());
+                if( !g_solver )
+                    g_solver = new GPUSolver(conf.currentPlatform, conf.currentDevice, n, k);
+#endif
+            }
+            else
+            {
+                // Solve Equihash.
+                EhInitialiseState(n, k, eh_state);
+                // H(I||...
+                crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
+            }
+
+            while ( nMaxTries > 0  && nCounter < nInnerLoopCount ) 
+            {
+                crypto_generichash_blake2b_state curr_state;
+                curr_state = eh_state;
+
+                // Yes, there is a chance every nonce could fail to satisfy the -regtest
+                // target -- 1 in 2^(2^256). That ain't gonna happen
+                pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
+                ++nCounter;
+
+                if( conf.useGPU )
+                {
+#ifdef ENABLE_GPU
+                    headerlen = ((uint32_t)(nHeight+1) < (uint32_t)params.GetConsensus().ContractHeight) ? CBlockHeader::HEADER_SIZE : CBlockHeader::HEADER_NEWSIZE;
+                    for (size_t i = 0; i < FABCOIN_NONCE_LEN; ++i)
+                        header[ headerlen-32 + i] = pblock->nNonce.begin()[i];
+#endif
+                }
+                else
+                {
+                    // H(I||V||...
+                    curr_state = eh_state;
+                    crypto_generichash_blake2b_update(&curr_state, pblock->nNonce.begin(), pblock->nNonce.size());
+                }
+
+                // (x_1, x_2, ...) = A(I, V, n, k)
+                std::function<bool(std::vector<unsigned char>)> validBlock =
+                    [&pblock](std::vector<unsigned char> soln) 
+                {
+                    pblock->nSolution = soln;
+                    // TODO(h4x3rotab): Add metrics counter like Zcash? `solutionTargetChecks.increment();`
+                    // TODO(h4x3rotab): Maybe switch to EhBasicSolve and better deal with `nMaxTries`?
+                    return CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus(), false);
+                };
+
+                bool found = false;
+                if( conf.useGPU )
+                {
+#ifdef ENABLE_GPU
+                    found = g_solver->run(n, k, header, headerlen, pblock->nNonce, validBlock, false, curr_state);
+#endif
+                }
+                else
+                    found = EhBasicSolveUncancellable(n, k, curr_state, validBlock);
+                --nMaxTries;
+                // TODO(h4x3rotab): Add metrics counter like Zcash? `ehSolverRuns.increment();`
+                if (found) break;
+            }
         }
         if (nMaxTries == 0) {
             break;
         }
-        if (pblock->nNonce == nInnerLoopCount) {
+        if (nCounter == nInnerLoopCount) {
             continue;
         }
         std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
@@ -154,6 +334,15 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
             coinbaseScript->KeepScript();
         }
     }
+
+    if( conf.useGPU )
+    {
+#ifdef ENABLE_GPU
+        delete g_solver;
+        free(header);
+#endif
+    }
+
     return blockHashes;
 }
 
@@ -173,6 +362,9 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
             "\nGenerate 11 blocks to myaddress\n"
             + HelpExampleCli("generatetoaddress", "11 \"myaddress\"")
         );
+
+    if (!Params().MineBlocksOnDemand())
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can only be used on regtest");
 
     int nGenerate = request.params[0].get_int();
     uint64_t nMaxTries = 1000000;
@@ -239,7 +431,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
     obj.push_back(Pair("currentblocktx",   (uint64_t)nLastBlockTx));
 
     diff.push_back(Pair("proof-of-work",   GetDifficulty(GetLastBlockIndex(pindexBestHeader, false))));
-    diff.push_back(Pair("proof-of-stake",  GetDifficulty(GetLastBlockIndex(pindexBestHeader, true))));
+    //diff.push_back(Pair("proof-of-stake",  GetDifficulty(GetLastBlockIndex(pindexBestHeader, true))));
     diff.push_back(Pair("search-interval", (int)nLastCoinStakeSearchInterval));
     obj.push_back(Pair("difficulty",       diff));
 
@@ -261,7 +453,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
     weight.push_back(Pair("minimum",       (uint64_t)nWeight));
     weight.push_back(Pair("maximum",       (uint64_t)0));
     weight.push_back(Pair("combined",      (uint64_t)nWeight));
-    obj.push_back(Pair("stakeweight",      weight));
+    //obj.push_back(Pair("stakeweight",      weight));
 
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
     if (IsDeprecatedRPCEnabled("getmininginfo")) {
@@ -427,7 +619,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "             n                          (numeric) transactions before this one (by 1-based index in 'transactions' list) that must be present in the final block if this one is\n"
             "             ,...\n"
             "         ],\n"
-            "         \"fee\": n,                    (numeric) difference in value between transaction inputs and outputs (in satoshis); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one\n"
+            "         \"fee\": n,                    (numeric) difference in value between transaction inputs and outputs (in lius); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one\n"
             "         \"sigops\" : n,                (numeric) total SigOps cost, as counted for purposes of block limits; if key is not present, sigop cost is unknown and clients MUST NOT assume it is zero\n"
             "         \"weight\" : n,                (numeric) total transaction weight, as counted for purposes of block limits\n"
             "         \"required\" : true|false      (boolean) if provided and true, this transaction must be in the final block\n"
@@ -437,7 +629,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "  \"coinbaseaux\" : {                 (json object) data that should be included in the coinbase's scriptSig content\n"
             "      \"flags\" : \"xx\"                  (string) key name is to be ignored, and value included in scriptSig\n"
             "  },\n"
-            "  \"coinbasevalue\" : n,              (numeric) maximum allowable input to coinbase transaction, including the generation award and transaction fees (in satoshis)\n"
+            "  \"coinbasevalue\" : n,              (numeric) maximum allowable input to coinbase transaction, including the generation award and transaction fees (in lius)\n"
             "  \"coinbasetxn\" : { ... },          (json object) information for coinbase transaction\n"
             "  \"target\" : \"xxxx\",                (string) The hash target\n"
             "  \"mintime\" : xxx,                  (numeric) The minimum timestamp appropriate for next block time in seconds since epoch (Jan 1 1970 GMT)\n"
@@ -479,15 +671,17 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
         lpval = find_value(oparam, "longpollid");
 
-        if (strMode == "proposal")
+        if (strMode == "proposal" || strMode == "proposal_legacy"  )
         {
             const UniValue& dataval = find_value(oparam, "data");
             if (!dataval.isStr())
                 throw JSONRPCError(RPC_TYPE_ERROR, "Missing data String key for proposal");
 
             CBlock block;
-            if (!DecodeHexBlk(block, dataval.get_str()))
+
+            if (!DecodeHexBlk(block, dataval.get_str())){
                 throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
+            }
 
             uint256 hash = block.GetHash();
             BlockMap::iterator mi = mapBlockIndex.find(hash);
@@ -624,7 +818,8 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 
     // Update nTime
     UpdateTime(pblock, consensusParams, pindexPrev);
-    pblock->nNonce = 0;
+    pblock->nNonce = uint256();
+    pblock->nSolution.clear();
 
     // NOTE: If at some point we support pre-segwit miners post-segwit-activation, this needs to take segwit support into consideration
     const bool fPreSegWit = (THRESHOLD_ACTIVE != VersionBitsState(pindexPrev, consensusParams, Consensus::DEPLOYMENT_SEGWIT, versionbitscache));
@@ -859,6 +1054,40 @@ UniValue submitblock(const JSONRPCRequest& request)
     return BIP22ValidationResult(sc.state);
 }
 
+UniValue getblocksubsidy(const JSONRPCRequest& request)
+{
+  if (request.fHelp || request.params.size() > 1)
+    throw std::runtime_error(
+      "getblocksubsidy height\n"
+      "\nReturns block subsidy reward of block at index provided.\n"
+      "\nArguments:\n"
+      "1. height          (numeric, optional) The block height. If not provided, defaults to the current height of the chain.\n"
+      "\nResult:\n"
+      "{\n"
+      "\"miner\": n,    (numeric) The mining reward amount in lius.\n"
+      "\"founders\": f, (numeric) Always 0, for Zcash mining compatibility.\n"
+      "}\n"
+      "\nExamples:\n"
+      + HelpExampleCli("getblocksubsidy", "1000")
+      + HelpExampleRpc("getblocksubsidy", "1000")
+    );
+
+  RPCTypeCheck(request.params, {UniValue::VNUM});
+
+  LOCK(cs_main);
+  int nHeight = (request.params.size() == 1) ? request.params[0].get_int() : chainActive.Height();
+  if (nHeight < 0)
+    throw JSONRPCError(RPC_INVALID_PARAMETER, "Block height out of range.");
+
+  UniValue result(UniValue::VOBJ);
+
+  CAmount nReward = GetBlockSubsidy(nHeight, Params().GetConsensus());
+  result.push_back(Pair("miner", nReward));
+  result.push_back(Pair("founders", 0));
+
+  return result;
+}
+
 UniValue estimatefee(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
@@ -922,7 +1151,7 @@ UniValue estimatesmartfee(const JSONRPCRequest& request)
             "       \"CONSERVATIVE\"\n"
             "\nResult:\n"
             "{\n"
-            "  \"feerate\" : x.x,     (numeric, optional) estimate fee-per-kilobyte (in FABCOIN)\n"
+            "  \"feerate\" : x.x,     (numeric, optional) estimate fee-per-kilobyte (in FAB)\n"
             "  \"errors\": [ str... ] (json array of strings, optional) Errors encountered during processing\n"
             "  \"blocks\" : n         (numeric) block number where estimate was found\n"
             "}\n"
@@ -1063,6 +1292,77 @@ UniValue estimaterawfee(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue getgenerate(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+        "getgenerate\n"
+        "\nReturn if the server is set to generate coins or not. The default is false.\n"
+        "It is set with the command line argument -gen (or " + std::string(FABCOIN_CONF_FILENAME) + " setting gen)\n"
+        "It can also be set with the setgenerate call.\n"
+        "\nResult\n"
+        "true|false      (boolean) If the server is set to generate coins or not\n"
+        "\nExamples:\n"
+        + HelpExampleCli("getgenerate", "")
+        + HelpExampleRpc("getgenerate", "")
+        );
+
+    LOCK(cs_main);
+    return gArgs.GetBoolArg("-gen", DEFAULT_GENERATE);
+}
+
+UniValue setgenerate(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
+        throw std::runtime_error(
+        "setgenerate generate ( genproclimit )\n"
+        "\nSet 'generate' true or false to turn generation on or off.\n"
+        "Generation is limited to 'genproclimit' processors, -1 is unlimited.\n"
+        "See the getgenerate call for the current setting.\n"
+        "\nArguments:\n"
+        "1. generate         (boolean, required) Set to true to turn on generation, off to turn off.\n"
+        "2. genproclimit     (numeric, optional) Set the processor limit for when generation is on. Can be -1 for unlimited.\n"
+        "\nExamples:\n"
+        "\nSet the generation on with a limit of one processor\n"
+        + HelpExampleCli("setgenerate", "true 1") +
+        "\nCheck the setting\n"
+        + HelpExampleCli("getgenerate", "") +
+        "\nTurn off generation\n"
+        + HelpExampleCli("setgenerate", "false") +
+        "\nUsing json rpc\n"
+        + HelpExampleRpc("setgenerate", "true, 1")
+        );
+
+    if (Params().MineBlocksOnDemand())
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Use the generate method instead of setgenerate on this network");
+
+    bool fGenerate = true;
+    if (request.params.size() > 0)
+        fGenerate = request.params[0].get_bool();
+
+    int nGenProcLimit = 1;
+    if (request.params.size() > 1)
+    {
+        nGenProcLimit = request.params[1].get_int();
+        if (nGenProcLimit == 0)
+            fGenerate = false;
+    }
+
+    gArgs.ForceSetArg("-gen",fGenerate ? "1" : "0");
+    gArgs.ForceSetArg("-genproclimit",itostr(nGenProcLimit));
+    GenerateFabcoins(fGenerate, nGenProcLimit, Params());
+
+    GPUConfig conf;
+    conf.useGPU = gArgs.GetBoolArg("-G", false) || gArgs.GetBoolArg("-GPU", false);
+    conf.selGPU = gArgs.GetArg("-deviceid", 0);
+    conf.allGPU = gArgs.GetBoolArg("-allgpu", 0);
+    conf.forceGenProcLimit = gArgs.GetBoolArg("-forcenolimit", false);
+    GenerateFabcoins(fGenerate, nGenProcLimit, Params(), conf);
+
+    return 0;
+}
+
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1072,9 +1372,12 @@ static const CRPCCommand commands[] =
     { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
     { "mining",             "getsubsidy",             &getsubsidy,             {"height"} },
+    { "mining",             "getblocksubsidy",        &getblocksubsidy,        {"height"} },
     { "mining",             "getstakinginfo",         &getstakinginfo,         {} },
 
     { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries"} },
+    { "generating",         "getgenerate",            &getgenerate,            {"generate","genproclimit"} },
+    { "generating",         "setgenerate",            &setgenerate,            {"generate"} },
 
     { "util",               "estimatefee",            &estimatefee,            {"nblocks"} },
     { "util",               "estimatesmartfee",       &estimatesmartfee,       {"conf_target", "estimate_mode"} },

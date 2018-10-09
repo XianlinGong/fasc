@@ -112,9 +112,13 @@ namespace BCLog {
         LEVELDB     = (1 << 20),
         COINSTAKE   = (1 << 21),
         HTTPPOLL    = (1 << 22),
+        POW         = (1 << 30),
         ALL         = ~(uint32_t)0,
     };
 }
+/** Return true if log accepts specified category */
+bool LogAcceptCategoryChar(const char* category);
+
 /** Return true if log accepts specified category */
 static inline bool LogAcceptCategory(uint32_t category)
 {
@@ -168,6 +172,12 @@ template<typename T, typename... Args> static inline void MarkUsed(const T& t, c
     } \
 } while(0)
 #endif
+
+#define LogPrintChar(category, ...) do { \
+    if (LogAcceptCategoryChar((category))) { \
+        LogPrintStr(tfm::format(__VA_ARGS__)); \
+    } \
+} while(0)
 
 template<typename... Args>
 bool error(const char* fmt, const Args&... args)

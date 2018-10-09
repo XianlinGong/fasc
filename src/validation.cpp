@@ -478,6 +478,23 @@ static bool IsCurrentForFeeEstimation()
     return true;
 }
 
+bool static IsFABHardForkEnabled(int nHeight, const Consensus::Params& params) {
+    return (uint32_t)nHeight >= (uint32_t)params.FABHeight;
+}
+
+bool IsFABHardForkEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params) {
+    if (pindexPrev == nullptr) {
+        return false;
+    }
+
+    return IsFABHardForkEnabled(pindexPrev->nHeight, params);
+}
+
+bool IsFABHardForkEnabledForCurrentBlock(const Consensus::Params& params) {
+    AssertLockHeld(cs_main);
+    return IsFABHardForkEnabled(chainActive.Tip(), params);
+}
+
 /* Make mempool consistent after a reorg, by re-adding or recursively erasing
  * disconnected block transactions from the mempool, and also removing any
  * other transactions from the mempool that are no longer valid given the new
@@ -729,6 +746,10 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         //////////////////////////////////////////////////////////// // fabcoin
         if(tx.HasCreateOrCall()){
 
+            if ( (uint32_t)chainActive.Tip()->nHeight < (uint32_t)Params().GetConsensus().ContractHeight  ) {
+                return state.DoS(1, false, REJECT_INVALID, "bad-txns-invalid-contract-before-fork");
+            }
+
             if(!CheckSenderScript(view, tx)){
                 return state.DoS(1, false, REJECT_INVALID, "bad-txns-invalid-sender-script");
             }
@@ -846,10 +867,12 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "min relay fee not met");
         }
 
-        if (!tx.HasCreateOrCall() && nAbsurdFee && nFees > nAbsurdFee)
+        if (!tx.HasCreateOrCall() && nAbsurdFee && nFees  > nAbsurdFee ) {
+            LogPrintf("absurdly-high-fee nAbsurdFee=%d nFees=%d \n", nAbsurdFee , nFees );
             return state.Invalid(false,
                 REJECT_HIGHFEE, "absurdly-high-fee",
                 strprintf("%d > %d", nFees, nAbsurdFee));
+        }
 
         // Calculate in-mempool ancestors, up to a limit.
         CTxMemPool::setEntries setAncestors;
@@ -1200,7 +1223,7 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
 bool CheckHeaderPoW(const CBlockHeader& block, const Consensus::Params& consensusParams)
 {
     // Check for proof of work block header
-    return CheckProofOfWork(block.GetHash(), block.nBits, consensusParams);
+    return CheckProofOfWork(block.GetHash(), block.nBits, consensusParams, false);
 }
 
 bool CheckHeaderPoS(const CBlockHeader& block, const Consensus::Params& consensusParams)
@@ -1290,6 +1313,13 @@ bool ReadBlockFromDisk(Block& block, const CDiskBlockPos& pos, const Consensus::
         //they will be validated later in CheckBlock and ConnectBlock anyway
         if (!CheckHeaderProof(block, consensusParams))
             return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+
+        // Check Equihash solution
+        bool postfork = ( (uint32_t)block.nHeight >= (uint32_t)consensusParams.FABHeight );
+        if (postfork && !CheckEquihashSolution(&block, Params())) {
+            LogPrintf("Debug nHeight=%d FABHeight=%d postfork=%d \n", block.nHeight, consensusParams.FABHeight, postfork );
+            return error("ReadBlockFromDisk: Errors in block header at %s (bad Equihash solution)", pos.ToString());
+        }
     }
 
     return true;
@@ -1352,17 +1382,26 @@ bool ReadFromDisk(CMutableTransaction& tx, CDiskTxPos& txindex, CBlockTreeDB& tx
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
-    if(nHeight <= consensusParams.nLastPOWBlock)
-        return 20000 * COIN;
-
-    int halvings = (nHeight - consensusParams.nLastPOWBlock - 1) / consensusParams.nSubsidyHalvingInterval;
+    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
     // Force block reward to zero when right shift is undefined.
-    if (halvings >= 7)
+    if (halvings >= 64)
         return 0;
 
-    CAmount nSubsidy = 4 * COIN;
-    // Subsidy is cut in half every 985500 blocks which will occur approximately every 4 years.
-    nSubsidy >>= halvings;
+    CAmount nSubsidy = INITIAL_BLOCK_REWARD * COIN;
+
+    bool fRegTest = ( Params().NetworkIDString() == CBaseChainParams::REGTEST) ||  (Params().NetworkIDString() == CBaseChainParams::UNITTEST ) ;
+
+    if ( fRegTest )
+        nSubsidy = INITIAL_BLOCK_REWARD_REGTEST * COIN;
+
+    //Pre-mining 
+    if ( nHeight == 2  &&  !fRegTest ) {
+       nSubsidy = 32000000 * COIN;
+    }
+
+    // Subsidy is cut in half every 1680,000 blocks which will occur approximately every 4 years.
+    if ( !fRegTest )
+       nSubsidy >>= halvings;
     return nSubsidy;
 }
 
@@ -1804,7 +1843,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                 COutPoint out(hash, o);
                 Coin coin;
                 bool is_spent = view.SpendCoin(out, &coin);
-                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase || is_coinstake != coin.fCoinStake) {
+                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
                     fClean = false; // transaction output mismatch
                 }
             }
@@ -2685,6 +2724,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             checkBlock.vtx.push_back(block.vtx[i]);
         }
         if(tx.HasCreateOrCall() && !hasOpSpend){
+            if ( (uint32_t) chainActive.Tip()->nHeight < (uint32_t) Params().GetConsensus().ContractHeight  ) {
+                return state.DoS(1, false, REJECT_INVALID, "bad-txns-invalid-contract-before-fork");
+            }
 
             if(!CheckSenderScript(view, tx)){
                 return state.DoS(100, false, REJECT_INVALID, "bad-txns-invalid-sender-script");
@@ -2838,6 +2880,10 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if((checkBlock.GetHash() != block.GetHash()) && !fJustCheck)
     {
         LogPrintf("Actual block data does not match block expected by AAL\n");
+        //CBlock dumpBlock(block); 
+        //LogPrintf("Debug Dump watched block: Height %d, others ==   %s \n", block.nHeight, dumpBlock.ToString());
+        //CBlock dumpCheckBlock(checkBlock); 
+        //LogPrintf("Debug Dump Checked block: Height %d, others ==   %s \n", checkBlock.nHeight, dumpCheckBlock.ToString());
         //Something went wrong with AAL, compare different elements and determine what the problem is
         if(checkBlock.hashMerkleRoot != block.hashMerkleRoot){
             //there is a mismatched tx, so go through and determine which txs
@@ -4049,9 +4095,23 @@ bool CheckBlockSignature(const CBlock& block)
 
 static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
+    // Check Equihash solution is valid
+    bool postfork = (uint32_t)block.nHeight >= (uint32_t)consensusParams.FABHeight;
+    //LogPrintf("Debug CheckBlockHeader nHeight=%d %d %d ", block.nHeight, consensusParams.FABHeight, postfork );
+    //LogPrintf("Debug blockheader=%s", block.ToString());
+
+    if (fCheckPOW && postfork && !CheckEquihashSolution(&block, Params())) {
+        LogPrintf("CheckBlockHeader(): Equihash solution invalid at height %d\n", block.nHeight);
+        return state.DoS(100, error("CheckBlockHeader(): Equihash solution invalid"),
+                         REJECT_INVALID, "invalid-solution");
+    }
+
     // Check proof of work matches claimed amount
-    if (fCheckPOW && block.IsProofOfWork() && !CheckHeaderPoW(block, consensusParams))
+    if (fCheckPOW &&  block.IsProofOfWork() &&  !CheckProofOfWork(block.GetHash(), block.nBits,  consensusParams, false)) {
+        CBlock dumpBlock(block); 
+        LogPrintf("Dump block: Height %d, postfork=%d others == %s \n", block.nHeight, postfork, dumpBlock.ToString());
         return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
+    }
     // PoS header proofs are not validated and always return true
     return true;
 }
@@ -4409,10 +4469,22 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
             return true;
         }
 
+       //int nBlockMaxConflict = gArgs.GetArg("-blockmaxconflict", DEFAULT_BLOCK_MAX_CONFLICT);
+       int nBlockMaxConflict = gArgs.GetArg("-blockmaxconflict", 0);
+       int conflict_blocks = chainActive.Tip()->nHeight - (block.nHeight -1);
+
+       if ( (nBlockMaxConflict > 0 ) && (conflict_blocks >= nBlockMaxConflict ) ) {
+           LogPrintf("Invalid block=%s(%d) conflicted with currenainActive.Tip()=%s(%d) about %d blocks before, more than blockmaxconflict(%d) setting.\n" , block.GetHash().ToString(), block.nHeight, chainActive.Tip()->GetBlockHash().ToString(), chainActive.Tip()->nHeight, conflict_blocks , nBlockMaxConflict ) ;
+
+           return state.DoS(10, error("block conflicted with current bestblock chain more than blockmaxconflict setting"), REJECT_INVALID, "invalid-blocks-over-blockmaxconflict");
+       }
+
+        //LogPrintf("debug AcceptBlockHeader CheckBlockHeader %s(%d)\n", block.GetHash().ToString() , block.nHeight);
         if (!CheckBlockHeader(block, state, chainparams.GetConsensus()))
             return error("%s: Consensus::CheckBlockHeader: %s, %s", __func__, hash.ToString(), FormatStateMessage(state));
 
         // Get prev block index
+        //LogPrintf("debug AcceptBlockHeader check-prev-block-index %s(%d) - %s\n", block.GetHash().ToString() , block.nHeight, block.hashPrevBlock.ToString());
         CBlockIndex* pindexPrev = nullptr;
         BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
         if (mi == mapBlockIndex.end())
@@ -4420,6 +4492,8 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
         pindexPrev = (*mi).second;
         if (pindexPrev->nStatus & BLOCK_FAILED_MASK)
             return state.DoS(100, error("%s: prev block invalid", __func__), REJECT_INVALID, "bad-prevblk");
+
+        //LogPrintf("debug ContextualCheckBlockHeader() %s(%d)\n", block.GetHash().ToString(), block.nHeight);
         if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
             return error("%s: Consensus::ContextualCheckBlockHeader: %s, %s", __func__, hash.ToString(), FormatStateMessage(state));
 
@@ -4438,12 +4512,16 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
             }
         }
     }
-    if (pindex == nullptr)
+
+    if (pindex == nullptr) {
+        //LogPrintf("debug AddToBlockIndex() %s(%d)\n", block.GetHash().ToString(), block.nHeight);
         pindex = AddToBlockIndex(block);
+    }
 
     if (ppindex)
         *ppindex = pindex;
 
+    //LogPrintf("debug CheckBlockIndex() %s(%d)\n", block.GetHash().ToString(), block.nHeight);
     CheckBlockIndex(chainparams.GetConsensus());
 
     return true;

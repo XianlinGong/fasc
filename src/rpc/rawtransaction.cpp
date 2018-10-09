@@ -488,6 +488,9 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             CTxOut out(0, CScript() << OP_RETURN << data);
             rawTx.vout.push_back(out);
         } else if (name_ == "contract") {
+            if ( (uint32_t) chainActive.Height() <  (uint32_t) Params().GetConsensus().ContractHeight  )
+               throw JSONRPCError(RPC_METHOD_NOT_FOUND, std::string ("This method can only be used after fasc fork, after block ") + std::to_string(Params().GetConsensus().ContractHeight ));
+
             // Get the call object
             UniValue Contract = sendTo[name_];
             if(!Contract.isObject())
@@ -628,7 +631,7 @@ UniValue decoderawtransaction(const JSONRPCRequest& request)
             "         \"reqSigs\" : n,            (numeric) The required sigs\n"
             "         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n"
             "         \"addresses\" : [           (json array of string)\n"
-            "           \"Q2tvKAXCxZjSmdNbao16dKXC8tRWfcF5oc\"   (string) fabcoin address\n"
+            "           \"12tvKAXCxZjSmdNbao16dKXC8tRWfcF5oc\"   (string) fabcoin address\n"
             "           ,...\n"
             "         ]\n"
             "       }\n"
@@ -656,6 +659,71 @@ UniValue decoderawtransaction(const JSONRPCRequest& request)
 
     UniValue result(UniValue::VOBJ);
     TxToUniv(CTransaction(std::move(mtx)), uint256(), result, false);
+
+    return result;
+}
+
+UniValue getcontractaddress(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "getcontractaddress \"hexstring\"\n"
+            "\nReturn the expected contract address of a transaction.\n"
+
+            "\nArguments:\n"
+            "1. \"hexstring\"      (string, required) The transaction hex string\n"
+
+            "\nResult:\n"
+            "\"address\"      (string) The fabcoin address of the contract.\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("getcontractaddress", "\"hexstring\"")
+            + HelpExampleRpc("getcontractaddress", "\"hexstring\"")
+        );
+
+    LOCK(cs_main);
+    RPCTypeCheck(request.params, {UniValue::VSTR});
+
+    CMutableTransaction mtx;
+
+    if (!DecodeHexTx(mtx, request.params[0].get_str(), true))
+        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
+
+    std::vector<unsigned char> SHA256TxVout(32);
+    std::vector<unsigned char> contractAddress(20);
+    std::vector<unsigned char> txIdAndVout(mtx.GetHash().begin(), mtx.GetHash().end());
+
+    /* uint256 GetHash is meant to provide a length 32 array, but reading from GDB
+     * the size and contents of GetHash is nondeterministic; I'm pretty sure it's
+     * picking up garbage from somewhere and throwing it in with the correct
+     * initial 32 chars.
+     * We resize the array after calling constructor to ensure we're getting a hash
+     * of the correct length.
+     */
+    txIdAndVout.resize(32);
+    uint32_t voutNumber = 0;
+    bool txHasOpCreate = false;
+    for (auto txout : mtx.vout) {
+        if (txout.scriptPubKey.HasOpCreate()) {
+            std::vector<unsigned char> voutNumberChrs;
+            if (voutNumberChrs.size() < sizeof(voutNumber))
+                voutNumberChrs.resize(sizeof(voutNumber));
+            std::memcpy(voutNumberChrs.data(), &voutNumber, sizeof(voutNumber));
+            txIdAndVout.insert(txIdAndVout.end(), voutNumberChrs.begin(), voutNumberChrs.end());
+            txHasOpCreate = true;
+            break;
+        }
+        voutNumber++;
+    }
+
+    if (!txHasOpCreate)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Given transaction does not create a contract");
+
+    CSHA256().Write(txIdAndVout.data(), txIdAndVout.size()).Finalize(SHA256TxVout.data());
+    CRIPEMD160().Write(SHA256TxVout.data(), SHA256TxVout.size()).Finalize(contractAddress.data());
+
+    UniValue result(UniValue::VOBJ);
+    result.push_back(Pair("address", HexStr(contractAddress)));
 
     return result;
 }
@@ -1177,6 +1245,7 @@ static const CRPCCommand commands[] =
     { "rawtransactions",    "signrawtransaction",     &signrawtransaction,     {"hexstring","prevtxs","privkeys","sighashtype"} }, /* uses wallet if enabled */
     { "rawtransactions",    "gethexaddress",          &gethexaddress,          {"address",} },
     { "rawtransactions",    "fromhexaddress",         &fromhexaddress,         {"hexaddress",} },
+    { "rawtransactions",    "getcontractaddress",     &getcontractaddress,     {"hexstring"} },
 
     { "blockchain",         "gettxoutproof",          &gettxoutproof,          {"txids", "blockhash"} },
     { "blockchain",         "verifytxoutproof",       &verifytxoutproof,       {"proof"} },

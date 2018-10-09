@@ -63,6 +63,7 @@ struct CCoin {
 static bool RESTERR(HTTPRequest* req, enum HTTPStatusCode status, std::string message)
 {
     req->WriteHeader("Content-Type", "text/plain");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
     req->WriteReply(status, message + "\r\n");
     return false;
 }
@@ -166,6 +167,7 @@ static bool rest_headers(HTTPRequest* req,
     case RF_BINARY: {
         std::string binaryHeader = ssHeader.str();
         req->WriteHeader("Content-Type", "application/octet-stream");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, binaryHeader);
         return true;
     }
@@ -173,6 +175,7 @@ static bool rest_headers(HTTPRequest* req,
     case RF_HEX: {
         std::string strHex = HexStr(ssHeader.begin(), ssHeader.end()) + "\n";
         req->WriteHeader("Content-Type", "text/plain");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strHex);
         return true;
     }
@@ -186,6 +189,7 @@ static bool rest_headers(HTTPRequest* req,
         }
         std::string strJSON = jsonHeaders.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -193,6 +197,9 @@ static bool rest_headers(HTTPRequest* req,
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: .bin, .hex)");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static bool rest_block(HTTPRequest* req,
@@ -230,6 +237,7 @@ static bool rest_block(HTTPRequest* req,
     case RF_BINARY: {
         std::string binaryBlock = ssBlock.str();
         req->WriteHeader("Content-Type", "application/octet-stream");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, binaryBlock);
         return true;
     }
@@ -237,6 +245,7 @@ static bool rest_block(HTTPRequest* req,
     case RF_HEX: {
         std::string strHex = HexStr(ssBlock.begin(), ssBlock.end()) + "\n";
         req->WriteHeader("Content-Type", "text/plain");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strHex);
         return true;
     }
@@ -249,6 +258,7 @@ static bool rest_block(HTTPRequest* req,
         }
         std::string strJSON = objBlock.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -257,6 +267,9 @@ static bool rest_block(HTTPRequest* req,
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: " + AvailableDataFormatsString() + ")");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static bool rest_block_extended(HTTPRequest* req, const std::string& strURIPart)
@@ -286,6 +299,7 @@ static bool rest_chaininfo(HTTPRequest* req, const std::string& strURIPart)
         UniValue chainInfoObject = getblockchaininfo(jsonRequest);
         std::string strJSON = chainInfoObject.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -293,6 +307,9 @@ static bool rest_chaininfo(HTTPRequest* req, const std::string& strURIPart)
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: json)");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static bool rest_mempool_info(HTTPRequest* req, const std::string& strURIPart)
@@ -308,6 +325,7 @@ static bool rest_mempool_info(HTTPRequest* req, const std::string& strURIPart)
 
         std::string strJSON = mempoolInfoObject.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -315,6 +333,9 @@ static bool rest_mempool_info(HTTPRequest* req, const std::string& strURIPart)
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: json)");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static bool rest_mempool_contents(HTTPRequest* req, const std::string& strURIPart)
@@ -330,6 +351,7 @@ static bool rest_mempool_contents(HTTPRequest* req, const std::string& strURIPar
 
         std::string strJSON = mempoolObject.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -337,6 +359,9 @@ static bool rest_mempool_contents(HTTPRequest* req, const std::string& strURIPar
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: json)");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static bool rest_tx(HTTPRequest* req, const std::string& strURIPart)
@@ -362,6 +387,7 @@ static bool rest_tx(HTTPRequest* req, const std::string& strURIPart)
     case RF_BINARY: {
         std::string binaryTx = ssTx.str();
         req->WriteHeader("Content-Type", "application/octet-stream");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, binaryTx);
         return true;
     }
@@ -369,6 +395,7 @@ static bool rest_tx(HTTPRequest* req, const std::string& strURIPart)
     case RF_HEX: {
         std::string strHex = HexStr(ssTx.begin(), ssTx.end()) + "\n";
         req->WriteHeader("Content-Type", "text/plain");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strHex);
         return true;
     }
@@ -378,6 +405,7 @@ static bool rest_tx(HTTPRequest* req, const std::string& strURIPart)
         TxToUniv(*tx, hashBlock, objTx);
         std::string strJSON = objTx.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -386,6 +414,9 @@ static bool rest_tx(HTTPRequest* req, const std::string& strURIPart)
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: " + AvailableDataFormatsString() + ")");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static bool rest_getutxos(HTTPRequest* req, const std::string& strURIPart)
@@ -521,6 +552,7 @@ static bool rest_getutxos(HTTPRequest* req, const std::string& strURIPart)
         std::string ssGetUTXOResponseString = ssGetUTXOResponse.str();
 
         req->WriteHeader("Content-Type", "application/octet-stream");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, ssGetUTXOResponseString);
         return true;
     }
@@ -531,6 +563,7 @@ static bool rest_getutxos(HTTPRequest* req, const std::string& strURIPart)
         std::string strHex = HexStr(ssGetUTXOResponse.begin(), ssGetUTXOResponse.end()) + "\n";
 
         req->WriteHeader("Content-Type", "text/plain");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strHex);
         return true;
     }
@@ -561,6 +594,7 @@ static bool rest_getutxos(HTTPRequest* req, const std::string& strURIPart)
         // return json string
         std::string strJSON = objGetUTXOResponse.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
+        req->WriteHeader("Access-Control-Allow-Origin", "*");
         req->WriteReply(HTTP_OK, strJSON);
         return true;
     }
@@ -568,6 +602,9 @@ static bool rest_getutxos(HTTPRequest* req, const std::string& strURIPart)
         return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: " + AvailableDataFormatsString() + ")");
     }
     }
+
+    // not reached
+    return true; // continue to process further HTTP reqs on this cxn
 }
 
 static const struct {

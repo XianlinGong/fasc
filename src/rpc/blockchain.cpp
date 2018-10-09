@@ -12,6 +12,7 @@
 #include <checkpoints.h>
 #include <coins.h>
 #include <consensus/validation.h>
+#include <consensus/params.h>
 #include <validation.h>
 #include <core_io.h>
 #include <policy/feerate.h>
@@ -42,19 +43,38 @@
 
 extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry);
 
-/* Calculate the difficulty for a given block index,
- * or the block index of the given chain.
- */
-double GetDifficulty(const CChain& chain, const CBlockIndex* blockindex)
+double GetDifficultyINTERNAL(const CBlockIndex* blockindex)
 {
-    if (blockindex == nullptr)
+    // Floating point number that is a multiple of the minimum difficulty,
+    // minimum difficulty = 1.0.
+
+    uint32_t bits = blockindex->nBits;
+
+    uint32_t powLimit =
+        UintToArith256(Params().GetConsensus().powLimit).GetCompact();
+    int nShift = (bits >> 24) & 0xff;
+    int nShiftAmount = (powLimit >> 24) & 0xff;
+
+    double dDiff =
+        (double)(powLimit & 0x00ffffff) /
+        (double)(bits & 0x00ffffff);
+
+    while (nShift < nShiftAmount)
     {
-        if (chain.Tip() == nullptr)
-            return 1.0;
-        else
-            blockindex = chain.Tip();
+        dDiff *= 256.0;
+        nShift++;
+    }
+    while (nShift > nShiftAmount)
+    {
+        dDiff /= 256.0;
+        nShift--;
     }
 
+    return dDiff;
+}
+
+double GetDifficultyBitcoin(const CBlockIndex* blockindex)
+{
     int nShift = (blockindex->nBits >> 24) & 0xff;
     double dDiff =
         (double)0x0000ffff / (double)(blockindex->nBits & 0x00ffffff);
@@ -136,6 +156,26 @@ double GetPoSKernelPS()
     return result;
 }
 
+double GetDifficulty(const CChain& chain, const CBlockIndex* blockindex)
+{
+    if (blockindex == nullptr)
+    {
+        if (chain.Tip() == nullptr)
+            return 1.0;
+        else
+            blockindex = chain.Tip();
+    }
+
+    if ((uint32_t) blockindex->nHeight >= Params().GetConsensus().FABHeight)
+    {
+        return GetDifficultyINTERNAL( blockindex);
+    }
+    else
+    {
+        return GetDifficultyBitcoin( blockindex);
+    }
+}
+
 double GetDifficulty(const CBlockIndex* blockindex)
 {
     return GetDifficulty(chainActive, blockindex);
@@ -155,14 +195,29 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
     result.push_back(Pair("version", blockindex->nVersion));
     result.push_back(Pair("versionHex", strprintf("%08x", blockindex->nVersion)));
     result.push_back(Pair("merkleroot", blockindex->hashMerkleRoot.GetHex()));
+
+    bool contract_format =  blockindex->IsSupportContract();  //!!!
+    bool legacy_format = blockindex->IsLegacyFormat() ;  //!!!
+
+    if ( contract_format ) {
+        result.push_back(Pair("hashStateRoot", blockindex->hashStateRoot.GetHex())); // fasc
+        result.push_back(Pair("hashUTXORoot", blockindex->hashUTXORoot.GetHex())); // fasc
+    }
+
     result.push_back(Pair("time", (int64_t)blockindex->nTime));
     result.push_back(Pair("mediantime", (int64_t)blockindex->GetMedianTimePast()));
-    result.push_back(Pair("nonce", (uint64_t)blockindex->nNonce));
+
+    if ( legacy_format ){
+        result.push_back(Pair("nonce", (uint64_t)((uint32_t)blockindex->nNonce.GetUint64(0))));
+    }
+    else {
+        result.push_back(Pair("nonce", blockindex->nNonce.GetHex()));
+        result.push_back(Pair("solution", HexStr(blockindex->nSolution)));
+    }
     result.push_back(Pair("bits", strprintf("%08x", blockindex->nBits)));
+
     result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
     result.push_back(Pair("chainwork", blockindex->nChainWork.GetHex()));
-    result.push_back(Pair("hashStateRoot", blockindex->hashStateRoot.GetHex())); // fabcoin
-    result.push_back(Pair("hashUTXORoot", blockindex->hashUTXORoot.GetHex())); // fabcoin
 
     if (blockindex->pprev)
         result.push_back(Pair("previousblockhash", blockindex->pprev->GetBlockHash().GetHex()));
@@ -170,16 +225,15 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
     if (pnext)
         result.push_back(Pair("nextblockhash", pnext->GetBlockHash().GetHex()));
 	
-    result.push_back(Pair("flags", strprintf("%s", blockindex->IsProofOfStake()? "proof-of-stake" : "proof-of-work")));
-    result.push_back(Pair("proofhash", blockindex->hashProof.GetHex()));
-    result.push_back(Pair("modifier", blockindex->nStakeModifier.GetHex()));
+    //result.push_back(Pair("flags", strprintf("%s", blockindex->IsProofOfStake()? "proof-of-stake" : "proof-of-work")));
+    //result.push_back(Pair("proofhash", blockindex->hashProof.GetHex()));
+    //result.push_back(Pair("modifier", blockindex->nStakeModifier.GetHex()));
 
     return result;
 }
 
 UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails)
 {
-    AssertLockHeld(cs_main);
     UniValue result(UniValue::VOBJ);
     result.push_back(Pair("hash", blockindex->GetBlockHash().GetHex()));
     int confirmations = -1;
@@ -194,8 +248,13 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("versionHex", strprintf("%08x", block.nVersion)));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
-    result.push_back(Pair("hashStateRoot", block.hashStateRoot.GetHex())); // fabcoin
-    result.push_back(Pair("hashUTXORoot", block.hashUTXORoot.GetHex())); // fabcoin
+
+    bool contract_format =  blockindex->IsSupportContract();  //!!!
+    bool legacy_format = blockindex->IsLegacyFormat() ;  //!!!
+    if ( contract_format ) {
+        result.push_back(Pair("hashStateRoot", block.hashStateRoot.GetHex())); // fasc
+        result.push_back(Pair("hashUTXORoot", block.hashUTXORoot.GetHex())); // fasc
+    }
     UniValue txs(UniValue::VARR);
     for(const auto& tx : block.vtx)
     {
@@ -211,7 +270,11 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     result.push_back(Pair("tx", txs));
     result.push_back(Pair("time", block.GetBlockTime()));
     result.push_back(Pair("mediantime", (int64_t)blockindex->GetMedianTimePast()));
-    result.push_back(Pair("nonce", (uint64_t)block.nNonce));
+
+    if ( legacy_format ) 
+       result.push_back(Pair("nonce", (uint64_t)((uint32_t)block.nNonce.GetUint64(0))));
+    else result.push_back(Pair("nonce", block.nNonce.GetHex()));
+
     result.push_back(Pair("bits", strprintf("%08x", block.nBits)));
     result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
     result.push_back(Pair("chainwork", blockindex->nChainWork.GetHex()));
@@ -222,9 +285,9 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     if (pnext)
         result.push_back(Pair("nextblockhash", pnext->GetBlockHash().GetHex()));
 
-    result.push_back(Pair("flags", strprintf("%s", blockindex->IsProofOfStake()? "proof-of-stake" : "proof-of-work")));
-    result.push_back(Pair("proofhash", blockindex->hashProof.GetHex()));
-    result.push_back(Pair("modifier", blockindex->nStakeModifier.GetHex()));
+    //result.push_back(Pair("flags", strprintf("%s", blockindex->IsProofOfStake()? "proof-of-stake" : "proof-of-work")));
+    //result.push_back(Pair("proofhash", blockindex->hashProof.GetHex()));
+    //result.push_back(Pair("modifier", blockindex->nStakeModifier.GetHex()));
 
     if (block.IsProofOfStake())
         result.push_back(Pair("signature", HexStr(block.vchBlockSig.begin(), block.vchBlockSig.end())));	
@@ -470,7 +533,7 @@ UniValue getdifficulty(const JSONRPCRequest& request)
     LOCK(cs_main);
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("proof-of-work",        GetDifficulty(GetLastBlockIndex(pindexBestHeader, false))));
-    obj.push_back(Pair("proof-of-stake",       GetDifficulty(GetLastBlockIndex(pindexBestHeader, true))));
+    //obj.push_back(Pair("proof-of-stake",       GetDifficulty(GetLastBlockIndex(pindexBestHeader, true))));
     return obj;
 }
 
@@ -790,7 +853,7 @@ UniValue getaccountinfo(const JSONRPCRequest& request)
     dev::Address addrAccount(strAddr);
     if(!globalState->addressInUse(addrAccount))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Address does not exist");
-    
+
     UniValue result(UniValue::VOBJ);
 
     result.push_back(Pair("address", strAddr));
@@ -805,7 +868,7 @@ UniValue getaccountinfo(const JSONRPCRequest& request)
         e.push_back(Pair(dev::toHex(j.second.first), dev::toHex(j.second.second)));
         storageUV.push_back(Pair(j.first.hex(), e));
     }
-        
+
     result.push_back(Pair("storage", storageUV));
 
     result.push_back(Pair("code", HexStr(code.begin(), code.end())));
@@ -837,7 +900,7 @@ UniValue getstorage(const JSONRPCRequest& request)
 
     std::string strAddr = request.params[0].get_str();
     if(strAddr.size() != 40 || !CheckHex(strAddr))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Incorrect address"); 
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Incorrect address");
 
     TemporaryState ts(globalState);
     if (request.params.size() > 1)
@@ -850,7 +913,7 @@ UniValue getstorage(const JSONRPCRequest& request)
 
             if(blockNum != -1)
                 ts.SetRoot(uintToh256(chainActive[blockNum]->hashStateRoot), uintToh256(chainActive[blockNum]->hashUTXORoot));
-                
+
         } else {
             throw JSONRPCError(RPC_INVALID_PARAMS, "Incorrect block number");
         }
@@ -859,7 +922,7 @@ UniValue getstorage(const JSONRPCRequest& request)
     dev::Address addrAccount(strAddr);
     if(!globalState->addressInUse(addrAccount))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Address does not exist");
-    
+
     UniValue result(UniValue::VOBJ);
 
     bool onlyIndex = request.params.size() > 2;
@@ -881,7 +944,7 @@ UniValue getstorage(const JSONRPCRequest& request)
         UniValue e(UniValue::VOBJ);
 
         storage = {{elem->first, {elem->second.first, elem->second.second}}};
-    } 
+    }
     for (const auto& j: storage)
     {
         UniValue e(UniValue::VOBJ);
@@ -890,7 +953,6 @@ UniValue getstorage(const JSONRPCRequest& request)
     }
     return result;
 }
-
 UniValue getblockheader(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
@@ -1046,7 +1108,7 @@ UniValue callcontract(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 2)
         throw std::runtime_error(
-             "callcontract \"address\" \"data\" ( address )\n"
+             "callcontract \"address\" \"data\" ( address gasLimit )\n"
              "\nArgument:\n"
              "1. \"address\"          (string, required) The account address\n"
              "2. \"data\"             (string, required) The data hex string\n"
@@ -1059,18 +1121,21 @@ UniValue callcontract(const JSONRPCRequest& request)
     std::string strAddr = request.params[0].get_str();
     std::string data = request.params[1].get_str();
 
+    if ( chainActive.Height() <  Params().GetConsensus().ContractHeight  )
+       throw JSONRPCError(RPC_METHOD_NOT_FOUND, std::string ("This method can only be used after fasc fork, block ") + std::to_string(Params().GetConsensus().ContractHeight ));
+
     if(data.size() % 2 != 0 || !CheckHex(data))
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid data (data not hex)");
 
     if(strAddr.size() != 40 || !CheckHex(strAddr))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Incorrect address");
- 
+
     dev::Address addrAccount(strAddr);
     if(!globalState->addressInUse(addrAccount))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Address does not exist");
-    
+
     dev::Address senderAddress;
-    if(request.params.size() == 3){
+    if(request.params.size() >= 3){
         CTxDestination fabcoinSenderAddress = DecodeDestination(request.params[2].get_str());
         if (IsValidDestination(fabcoinSenderAddress)) {
             const CKeyID *keyid = boost::get<CKeyID>(&fabcoinSenderAddress);
@@ -1085,7 +1150,6 @@ UniValue callcontract(const JSONRPCRequest& request)
         gasLimit = request.params[3].get_int();
     }
 
-
     std::vector<ResultExecute> execResults = CallContract(addrAccount, ParseHex(data), senderAddress, gasLimit);
 
     if(fRecordLogOpcodes){
@@ -1096,7 +1160,7 @@ UniValue callcontract(const JSONRPCRequest& request)
     result.push_back(Pair("address", strAddr));
     result.push_back(Pair("executionResult", executionResultToJSON(execResults[0].execRes)));
     result.push_back(Pair("transactionReceipt", transactionReceiptToJSON(execResults[0].txRec)));
- 
+
     return result;
 }
 
@@ -1513,12 +1577,15 @@ UniValue searchlogs(const JSONRPCRequest& request)
     if(!fLogEvents)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Events indexing disabled");
 
+    if ( chainActive.Height() <  Params().GetConsensus().ContractHeight  )
+       throw JSONRPCError(RPC_METHOD_NOT_FOUND, std::string ("This method can only be used after fork, block ") + std::to_string(Params().GetConsensus().ContractHeight ));
+
     int curheight = 0;
-    
+
     LOCK(cs_main);
 
     SearchLogsParams params(request.params);
-    
+
     std::vector<std::vector<uint256>> hashesToBlock;
 
     curheight = pblocktree->ReadHeightIndex(params.fromBlock, params.toBlock, params.minconf, hashesToBlock, params.addresses);
@@ -1596,7 +1663,7 @@ UniValue gettransactionreceipt(const JSONRPCRequest& request)
              "\nArgument:\n"
              "1. \"hash\"          (string, required) The transaction hash\n"
          );
- 
+
     if(!fLogEvents)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Events indexing disabled");
 
@@ -1606,7 +1673,7 @@ UniValue gettransactionreceipt(const JSONRPCRequest& request)
     if(hashTemp.size() != 64){
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Incorrect hash");
     }
-    
+
     uint256 hash(uint256S(hashTemp));
 
     std::vector<TransactionReceiptInfo> transactionReceiptInfo = pstorageresult->getResult(uintToh256(hash));
@@ -1623,16 +1690,18 @@ UniValue gettransactionreceipt(const JSONRPCRequest& request)
 
 UniValue listcontracts(const JSONRPCRequest& request)
 {
-	if (request.fHelp)
-		throw std::runtime_error(
-				"listcontracts (start maxDisplay)\n"
-				"\nArgument:\n"
-				"1. start     (numeric or string, optional) The starting account index, default 1\n"
-				"2. maxDisplay       (numeric or string, optional) Max accounts to list, default 20\n"
-		);
+    if (request.fHelp)
+        throw std::runtime_error(
+                "listcontracts (start maxDisplay)\n"
+                "\nArgument:\n"
+                "1. start     (numeric or string, optional) The starting account index, default 1\n"
+                "2. maxDisplay       (numeric or string, optional) Max accounts to list, default 20\n"
+        );
 
-	LOCK(cs_main);
+    LOCK(cs_main);
 
+    if ( chainActive.Height() <  Params().GetConsensus().ContractHeight  )
+       throw JSONRPCError(RPC_METHOD_NOT_FOUND, std::string ("This method can only be used after fork, block ") + std::to_string(Params().GetConsensus().ContractHeight ));
 	int start=1;
 	if (request.params.size() > 0){
 		start = request.params[0].get_int();
@@ -1829,6 +1898,74 @@ UniValue gettxoutsetinfo(const JSONRPCRequest& request)
     return ret;
 }
 
+
+UniValue gettxoutset(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+        "gettxoutset\n"
+        "\nReturns the unspent transaction output set.\n"
+        "Note this call may take some time.\n"
+        "\nResult:\n"
+        "{\n"
+        "  \"UTXO\": \"height, address, amount\"\n"
+        "}\n"
+        "\nExamples:\n"
+        + HelpExampleCli("gettxoutset", "")
+        + HelpExampleRpc("gettxoutset", "")
+        );
+
+    UniValue ret(UniValue::VOBJ);
+
+    CCoinsStats stats;
+    FlushStateToDisk();
+
+    std::unique_ptr<CCoinsViewCursor> pcursor(pcoinsdbview->Cursor());
+
+    uint256 prevkey;
+    std::map<uint32_t, Coin> outputs;
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        COutPoint key;
+        Coin coin;
+
+        if (pcursor->GetKey(key) && pcursor->GetValue(coin)) {
+            if (!outputs.empty() && key.hash != prevkey) {
+                outputs.clear();
+            }
+            prevkey = key.hash;
+            txnouttype type;
+            std::vector<CTxDestination> addresses;
+            int nRequired;
+            std::stringstream strUtxo;
+            if( ExtractDestinations(coin.out.scriptPubKey, type, addresses, nRequired))
+            {
+                for( const CTxDestination addr: addresses )
+                {
+                    strUtxo << coin.nHeight << ", " << key.hash.ToString() << ", " << key.n << ", " << EncodeDestination(addr) << ", " << coin.out.nValue  << ", " << coin.fCoinBase;
+
+                    ret.push_back(Pair("UTXO", strUtxo.str()));
+                }
+            }
+            else
+            {
+                strUtxo << coin.nHeight << ", " << "noaddress" << ", " << coin.out.nValue ;
+            }
+            outputs[key.n] = std::move(coin);
+        }
+        else
+        {
+            ret.push_back(Pair("ERROR: ", "unable to read value"));
+            return ret;
+        }
+        pcursor->Next();
+    }
+
+    return ret;
+}
+
+
 UniValue gettxout(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 2 || request.params.size() > 3)
@@ -1905,7 +2042,7 @@ UniValue gettxout(const JSONRPCRequest& request)
     ScriptPubKeyToUniv(coin.out.scriptPubKey, o, true);
     ret.push_back(Pair("scriptPubKey", o));
     ret.push_back(Pair("coinbase", (bool)coin.fCoinBase));
-    ret.push_back(Pair("coinstake", (bool)coin.fCoinStake));
+    //ret.push_back(Pair("coinstake", (bool)coin.fCoinStake));
 
     return ret;
 }
@@ -2497,6 +2634,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getrawmempool",          &getrawmempool,          {"verbose"} },
     { "blockchain",         "gettxout",               &gettxout,               {"txid","n","include_mempool"} },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        {} },
+    { "blockchain",         "gettxoutset",            &gettxoutset,            {} },
     { "blockchain",         "pruneblockchain",        &pruneblockchain,        {"height"} },
     { "blockchain",         "savemempool",            &savemempool,            {} },
     { "blockchain",         "verifychain",            &verifychain,            {"checklevel","nblocks"} },

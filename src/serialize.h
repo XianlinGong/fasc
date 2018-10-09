@@ -114,6 +114,17 @@ template<typename Stream> inline uint32_t ser_readdata32be(Stream &s)
     s.read((char*)&obj, 4);
     return be32toh(obj);
 }
+
+/*
+template<typename Stream> inline uint256 ser_readdata256(Stream &s)
+{
+    uint256 obj;
+    s.read((char*)&obj, 32);
+    //return le64toh(obj);
+    return obj;
+}
+*/
+
 ////////////////////////////////////////////////////////////////////
 template<typename Stream> inline uint64_t ser_readdata64(Stream &s)
 {
@@ -287,6 +298,14 @@ uint64_t ReadCompactSize(Stream& is)
         throw std::ios_base::failure("ReadCompactSize(): size too large");
     return nSizeRet;
 }
+
+/*
+template<typename Stream>
+uint256 ReadUint256(Stream& is)
+{
+    return ser_readdata256(is);
+}
+*/
 
 /**
  * Variable-length integers: bytes are a MSB base-128 encoding of the number.

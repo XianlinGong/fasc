@@ -299,8 +299,8 @@ UniValue setaccount(const JSONRPCRequest& request)
             "1. \"address\"         (string, required) The fabcoin address to be associated with an account.\n"
             "2. \"account\"         (string, required) The account to assign the address to.\n"
             "\nExamples:\n"
-            + HelpExampleCli("setaccount", "\"QD1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\" \"tabby\"")
-            + HelpExampleRpc("setaccount", "\"QD1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\", \"tabby\"")
+            + HelpExampleCli("setaccount", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\" \"tabby\"")
+            + HelpExampleRpc("setaccount", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\", \"tabby\"")
         );
 
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -348,8 +348,8 @@ UniValue getaccount(const JSONRPCRequest& request)
             "\nResult:\n"
             "\"accountname\"        (string) the account address\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaccount", "\"QD1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\"")
-            + HelpExampleRpc("getaccount", "\"QD1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\"")
+            + HelpExampleCli("getaccount", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\"")
+            + HelpExampleRpc("getaccount", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\"")
         );
 
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -593,6 +593,67 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     return wtx.GetHash().GetHex();
 }
 
+
+// ========= Smart Contracct ======================
+
+/*
+bool base58toVMAddress(std::string& strAddr, std::vector<unsigned char>& contractAddress)
+{
+    CFabcoinAddress address(strAddr);
+    if (!address.IsValid())
+        return false;
+
+    contractAddress = ToByteVector(boost::get<CKeyID>(address.Get()));
+
+    return true;
+}
+
+UniValue getvmaddress(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() < 1)
+        throw std::runtime_error(
+            "getvmaddress \"address\" \n"
+            "\nArgument:\n"
+            "1. \"address\"          (string, required) The account address\n");
+
+    std::string strAddr = request.params[0].get_str();
+    std::vector<unsigned char> contractAddress(20);
+    if (!base58toVMAddress(strAddr, contractAddress))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Incorrect address");
+    UniValue result(UniValue::VOBJ);
+    result.push_back(Pair("addressinvm", HexStr(contractAddress)));
+
+    return result;
+}
+
+UniValue getfabaddressbyvm(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() < 1)
+        throw std::runtime_error(
+            "getfabaddressbyvm \"vmaddress\" \n"
+            "\nArgument:\n"
+            "1. \"vmaddress\"          (string, required) The VM account address\n");
+
+    std::string strAddr = request.params[0].get_str();
+    if (strAddr.size() != 40 || !CheckHex(strAddr) )
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid data (data not 20 bytes hex)");
+    uint160 u(ParseHex(strAddr));
+
+    CFabcoinAddress fabAddress;
+    CKeyID keyid(u);
+    fabAddress.Set(keyid);
+
+    if (!fabAddress.IsValid())
+        return false;
+
+    UniValue result(UniValue::VOBJ);
+    result.push_back(Pair("fabaddressbyvm", fabAddress.ToString()));
+
+    return result;
+}
+*/
+
+
 UniValue createcontract(const JSONRPCRequest& request){
 
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -633,6 +694,9 @@ UniValue createcontract(const JSONRPCRequest& request){
 
 
     std::string bytecode=request.params[0].get_str();
+
+    if ( chainActive.Height() <  Params().GetConsensus().ContractHeight  )
+       throw JSONRPCError(RPC_METHOD_NOT_FOUND, std::string ("This method can only be used after fasc fork, block ") + std::to_string(Params().GetConsensus().ContractHeight ));
 
     if(bytecode.size() % 2 != 0 || !CheckHex(bytecode))
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid data (data not hex)");
@@ -833,6 +897,8 @@ UniValue sendtocontract(const JSONRPCRequest& request){
                 + HelpExampleCli("sendtocontract", "\"c6ca2697719d00446d4ea51f6fac8fd1e9310214\" \"54f6127f\" 12.0015 6000000 "+FormatMoney(minGasPrice)+" \"QM72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
 
+    if ( chainActive.Height() <  Params().GetConsensus().ContractHeight  )
+       throw JSONRPCError(RPC_METHOD_NOT_FOUND, std::string ("This method can only be used after fasc fork, block ") + std::to_string(Params().GetConsensus().ContractHeight ));
 
     std::string contractaddress = request.params[0].get_str();
     if(contractaddress.size() != 40 || !CheckHex(contractaddress))
@@ -4270,6 +4336,8 @@ static const CRPCCommand commands[] =
     { "wallet",             "rescanblockchain",         &rescanblockchain,         {"start_height", "stop_height"} },
     { "wallet",             "createcontract",           &createcontract,           {"bytecode", "gasLimit", "gasPrice", "senderAddress", "broadcast", "changeToSender"} },
     { "wallet",             "sendtocontract",           &sendtocontract,           {"contractaddress", "bytecode", "amount", "gasLimit", "gasPrice", "senderAddress", "broadcast", "changeToSender"} },
+    //{ "wallet",             "getvmaddress",             &getvmaddress,             {"contractaddress"}},
+    //{ "wallet",             "getfabaddressbyvm",        &getfabaddressbyvm,        {"contractaddress"}},
 
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 };

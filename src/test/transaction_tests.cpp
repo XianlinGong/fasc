@@ -119,8 +119,8 @@ BOOST_AUTO_TEST_CASE(tx_valid)
             std::map<COutPoint, int64_t> mapprevOutValues;
             UniValue inputs = test[0].get_array();
             bool fValid = true;
-	    for (unsigned int inpIdx = 0; inpIdx < inputs.size(); inpIdx++) {
-	        const UniValue& input = inputs[inpIdx];
+        for (unsigned int inpIdx = 0; inpIdx < inputs.size(); inpIdx++) {
+            const UniValue& input = inputs[inpIdx];
                 if (!input.isArray())
                 {
                     fValid = false;
@@ -206,8 +206,8 @@ BOOST_AUTO_TEST_CASE(tx_invalid)
             std::map<COutPoint, int64_t> mapprevOutValues;
             UniValue inputs = test[0].get_array();
             bool fValid = true;
-	    for (unsigned int inpIdx = 0; inpIdx < inputs.size(); inpIdx++) {
-	        const UniValue& input = inputs[inpIdx];
+        for (unsigned int inpIdx = 0; inpIdx < inputs.size(); inpIdx++) {
+            const UniValue& input = inputs[inpIdx];
                 if (!input.isArray())
                 {
                     fValid = false;
@@ -692,7 +692,7 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
 
     // Check dust with default relay fee:
     CAmount nDustThreshold = 182 * dustRelayFee.GetFeePerK()/1000;
-    BOOST_CHECK_EQUAL(nDustThreshold, 72800);
+    BOOST_CHECK_EQUAL(nDustThreshold, 546);
     // dust:
     t.vout[0].nValue = nDustThreshold - 1;
     BOOST_CHECK(!IsStandardTx(t, reason));

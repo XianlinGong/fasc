@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2016 The Bitcoin Core developers
+# Copyright (c) 2013-2017 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -85,6 +85,8 @@ FABCOIN_TESTS =\
   test/txvalidationcache_tests.cpp \
   test/versionbits_tests.cpp \
   test/uint256_tests.cpp \
+  test/univalue_tests.cpp \
+  test/equihash_tests.cpp \
   test/util_tests.cpp \
   test/fabcointests/fabcointxconverter_tests.cpp \
   test/fabcointests/bytecodeexec_tests.cpp \
@@ -110,7 +112,7 @@ test_test_fabcoin_LDADD += $(LIBFABCOIN_WALLET)
 endif
 test_test_fabcoin_LDADD += $(LIBFABCOIN_SERVER) $(LIBFABCOIN_CLI) $(LIBFABCOIN_COMMON) $(LIBFABCOIN_UTIL) $(LIBFABCOIN_CONSENSUS) $(LIBFABCOIN_CRYPTO) $(LIBUNIVALUE) $(LIBLEVELDB) $(LIBLEVELDB_SSE42) $(LIBMEMENV) \
   $(BOOST_LIBS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(LIBETHEREUM) $(LIBETHASHSEAL) $(LIBETHASH) $(LIBETHCORE) \
-  $(LIBDEVCORE) $(LIBJSONCPP) $(LIBEVM) $(LIBEVMCORE) $(LIBDEVCRYPTO) $(LIBCRYPTOPP) $(LIBSECP256K1) $(LIBSCRYIPT) $(BOOST_LIBS)
+  $(LIBDEVCORE) $(LIBJSONCPP) $(LIBEVM) $(LIBEVMCORE) $(LIBDEVCRYPTO) $(LIBCRYPTOPP) $(LIBSECP256K1) $(LIBSCRYIPT) $(BOOST_LIBS) $(LIBEQUIHASH_LIBS)
 test_test_fabcoin_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
 test_test_fabcoin_LDADD += $(LIBFABCOIN_CONSENSUS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
@@ -134,7 +136,8 @@ test_test_fabcoin_fuzzy_LDADD = \
   $(LIBFABCOIN_UTIL) \
   $(LIBFABCOIN_CONSENSUS) \
   $(LIBFABCOIN_CRYPTO) \
-  $(LIBSECP256K1)
+  $(LIBSECP256K1) \
+  $(LIBEQUIHASH_LIBS)
 
 test_test_fabcoin_fuzzy_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
 #

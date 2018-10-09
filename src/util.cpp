@@ -281,6 +281,7 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::COINDB, "coindb"},
     {BCLog::QT, "qt"},
     {BCLog::LEVELDB, "leveldb"},
+    {BCLog::POW, "pow"},
     {BCLog::COINSTAKE, "coinstake"},
     {BCLog::HTTPPOLL, "http-poll"},
     {BCLog::ALL, "1"},
@@ -332,6 +333,40 @@ std::vector<CLogCategoryActive> ListActiveLogCategories()
         }
     }
     return ret;
+}
+
+bool LogAcceptCategoryChar(const char* category)
+{
+    /*
+    if (category != NULL)
+    {
+        if (!fDebug)
+            return false;
+
+        // Give each thread quick access to -debug settings.
+        // This helps prevent issues debugging global destructors,
+        // where mapMultiArgs might be deleted before another
+        // global destructor calls LogPrint()
+        static boost::thread_specific_ptr<set<string> > ptrCategory;
+        if (ptrCategory.get() == NULL)
+        {
+            if (mapMultiArgs.count("-debug")) {
+                const vector<string>& categories = mapMultiArgs.at("-debug");
+                ptrCategory.reset(new set<string>(categories.begin(), categories.end()));
+                // thread_specific_ptr automatically deletes the set when the thread ends.
+            } else
+                ptrCategory.reset(new set<string>());
+        }
+        const set<string>& setCategories = *ptrCategory.get();
+
+        // if not debugging everything and not debugging specific category, LogPrint does nothing.
+        if (setCategories.count(string("")) == 0 &&
+            setCategories.count(string("1")) == 0 &&
+            setCategories.count(string(category)) == 0)
+            return false;
+    }
+    */
+    return true;
 }
 
 /**
@@ -621,7 +656,7 @@ fs::path GetDefaultDataDir()
     // Unix: ~/.fabcoin
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "Fabcoin";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "Fabcoinsc";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -631,10 +666,10 @@ fs::path GetDefaultDataDir()
         pathRet = fs::path(pszHome);
 #ifdef MAC_OSX
     // Mac
-    return pathRet / "Library/Application Support/Fabcoin";
+    return pathRet / "Library/Application Support/Fabcoinsc";
 #else
     // Unix
-    return pathRet / ".fabcoin";
+    return pathRet / ".fabcoinsc";
 #endif
 #endif
 }

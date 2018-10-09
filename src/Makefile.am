@@ -186,6 +186,17 @@ FABCOIN_CORE_H = \
   fabcoin/storageresults.h
 
 
+if ENABLE_GPU
+LIBGPUSOLVER_H = \
+  libgpusolver/libgpusolver.h \
+  libgpusolver/gpuconfig.h \
+  libgpusolver/kernels/silentarmy.h \
+  libgpusolver/libclwrapper.h \
+  libgpusolver/cl.hpp \
+  libgpusolver/blake.h \
+  libgpusolver/param.h
+endif
+  
 obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
 	@$(top_srcdir)/share/genbuild.sh "$(abs_top_builddir)/src/obj/build.h" \
@@ -193,7 +204,7 @@ obj/build.h: FORCE
 libfabcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 
 # server: shared between fabcoind and fabcoin-qt
-libfabcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(FABCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
+libfabcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(FABCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS) @CUDA_INCLUDES@
 libfabcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libfabcoin_server_a_SOURCES = \
   addrdb.cpp \
@@ -242,6 +253,16 @@ libfabcoin_server_a_SOURCES = \
   fabcoin/storageresults.cpp \
   $(FABCOIN_CORE_H)
 
+if ENABLE_GPU
+libgpusolver_SOURCES = libgpusolver/libgpusolver.cpp libgpusolver/libclwrapper.cpp libgpusolver/blake.cpp $(LIBGPUSOLVER_H) 
+libfabcoin_server_a_SOURCES += $(libgpusolver_SOURCES)
+endif
+
+if USE_CUDA
+libcuda_SOURCES = cuda/cuda_equi.cu cuda/blake2b.cu cuda/blake2/blake2bx.cpp cuda/equi_miner.cu
+libfabcoin_server_a_SOURCES += $(libcuda_SOURCES)
+endif
+
 if ENABLE_ZMQ
 libfabcoin_zmq_a_CPPFLAGS = $(FABCOIN_INCLUDES) $(ZMQ_CFLAGS)
 libfabcoin_zmq_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
@@ -260,14 +281,11 @@ libfabcoin_wallet_a_SOURCES = \
   wallet/crypter.cpp \
   wallet/db.cpp \
   wallet/feebumper.cpp \
-  wallet/fees.cpp \
-  wallet/init.cpp \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/wallet.cpp \
   wallet/walletdb.cpp \
-  wallet/walletutil.cpp \
-  pos.cpp \
+  policy/rbf.cpp \
   $(FABCOIN_CORE_H)
 
 # crypto primitives library
@@ -280,6 +298,9 @@ crypto_libfabcoin_crypto_a_SOURCES = \
   crypto/chacha20.h \
   crypto/chacha20.cpp \
   crypto/common.h \
+  crypto/equihash.cpp \
+  crypto/equihash.h \
+  crypto/equihash.tcc \
   crypto/hmac_sha256.cpp \
   crypto/hmac_sha256.h \
   crypto/hmac_sha512.cpp \
@@ -617,7 +638,7 @@ fabcoind_LDADD = \
   $(LIBCRYPTOPP) \
   $(LIBSECP256K1)
 
-fabcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
+fabcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(LIBEQUIHASH_LIBS)
 
 # fabcoin-cli binary #
 fabcoin_cli_SOURCES = fabcoin-cli.cpp
@@ -640,7 +661,7 @@ fabcoin_cli_LDADD = \
   $(LIBCRYPTOPP) \
   $(LIBSECP256K1)
 
-fabcoin_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
+fabcoin_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS) $(LIBEQUIHASH_LIBS)
 #
 
 # fabcoin-tx binary #
@@ -663,7 +684,8 @@ fabcoin_tx_LDADD = \
   $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \
   $(LIBCRYPTOPP) \
-  $(LIBSECP256K1)
+  $(LIBSECP256K1) \
+  $(LIBEQUIHASH_LIBS)
 
 fabcoin_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
 #
@@ -678,7 +700,7 @@ if GLIBC_BACK_COMPAT
 endif
 
 libfabcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libfabcoinconsensus_la_LIBADD = $(LIBSECP256K1)
+libfabcoinconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBEQUIHASH_LIBS)
 libfabcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include $(FABCOIN_INCLUDES) -DBUILD_FABCOIN_INTERNAL
 libfabcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
@@ -724,6 +746,28 @@ clean-local:
 	-rm -f cryptopp/*.o
 	-rm -f config.h
 	-rm -rf test/__pycache__
+
+if USE_CUDA
+nvcc_ARCH :=
+nvcc_ARCH += -gencode=arch=compute_52,code=\"sm_52,compute_52\"
+nvcc_ARCH += -gencode=arch=compute_50,code=\"sm_50,compute_50\"
+
+nvcc_FLAGS = $(nvcc_ARCH) @CUDA_INCLUDES@ -I. @CUDA_CFLAGS@
+nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v"
+endif
+
+if USE_CUDA
+# we're now targeting all major compute architectures within one binary.
+.cu.o:
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
+
+cuda/cuda_equi.o: cuda/cuda_equi.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
+cuda/equi_miner.o: cuda/equi_miner.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
+cuda/blake2b.o: cuda/blake2b.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
+endif
 
 .rc.o:
 	@test -f $(WINDRES)

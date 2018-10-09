@@ -9,6 +9,7 @@
 #include <script/interpreter.h>
 #include <script/standard.h>
 #include <consensus/validation.h>
+#include <chainparams.h>
 
 // TODO remove the following dependencies
 #include <chain.h>
@@ -239,7 +240,14 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
                 REJECT_INVALID, "bad-txns-premature-spend-of-coinbase",
                 strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));
         }
+        const Consensus::Params& consensus = ::Params().GetConsensus();
 
+        if (coin.nHeight < consensus.CoinbaseLock && coin.nHeight  != 2 ) {
+            if (nSpendHeight - coin.nHeight < consensus.CoinbaseLock)
+               return state.Invalid(false,
+                        REJECT_INVALID, "bad-txns-premature-spend-of-coinbase",
+                        strprintf("tried to spend coinbase on height %d at depth %d", coin.nHeight, nSpendHeight - coin.nHeight));
+        }
         // Check for negative or overflow input values
         nValueIn += coin.out.nValue;
         if (!MoneyRange(coin.out.nValue) || !MoneyRange(nValueIn)) {

@@ -9,6 +9,7 @@
 #include <string>
 #include <version.h>
 #include <consensus/consensus.h>
+#include <consensus/params.h>
 #include <primitives/transaction.h>
 #include <primitives/block.h>
 
