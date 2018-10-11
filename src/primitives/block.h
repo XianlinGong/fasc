@@ -72,7 +72,7 @@ public:
 
         READWRITE(nHeight);
 
-        bool equihash_format =  ! ( (s.GetVersion() & SERIALIZE_BLOCK_LEGACY) || _IsLegacyFormat(nHeight) );
+        bool equihash_format =  ! (   (s.GetVersion() & SERIALIZE_BLOCK_LEGACY) || _IsLegacyFormat(nHeight) );
 
         if (equihash_format) {
             for(size_t i = 0; i < (sizeof(nReserved) / sizeof(nReserved[0])); i++) {
@@ -83,6 +83,7 @@ public:
         READWRITE(nBits);
       
         if ( _IsSupportContract( this->nVersion, nHeight ) ) {
+        //if (  _IsSupportContract( this->nVersion, nHeight ) && !( s.GetVersion() & SERIALIZE_BLOCK_NO_CONTRACT )   ) {
             READWRITE(hashStateRoot); // fabcoin
             READWRITE(hashUTXORoot); // fabcoin
         }

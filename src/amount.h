@@ -14,8 +14,9 @@ typedef int64_t CAmount;
 static const CAmount COIN = 100000000;
 static const CAmount CENT = 1000000;
 
-/** No amount larger than this (in satoshi) is valid.*/
-static const CAmount MAX_MONEY = 107822406 * COIN + 25 * CENT;
+/** No amount larger than this (in liu) is valid.*/
+static const CAmount MAX_MONEY = (168000000 + 32000000) * COIN;
+
 inline bool MoneyRange(const CAmount& nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
 
 #endif //  FABCOIN_AMOUNT_H

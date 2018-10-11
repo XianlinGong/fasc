@@ -1,0 +1,278 @@
+77a78,79
+> //! if set, all keys will be derived by using BIP32
+> static const bool DEFAULT_USE_HD_WALLET = true;
+104c106
+<     FEATURE_BASE = 10500, // the earliest version new wallets supports (only useful for getwalletinfo's clientversion output)
+---
+>     FEATURE_BASE = 10500, // the earliest version new wallets supports (only useful for getinfo's clientversion output)
+113,114d114
+<     FEATURE_NO_DEFAULT_KEY = 159900, // Wallet without a default key written
+< 
+118,130d117
+< enum OutputType : int
+< {
+<     OUTPUT_TYPE_NONE,
+<     OUTPUT_TYPE_LEGACY,
+<     OUTPUT_TYPE_P2SH_SEGWIT,
+<     OUTPUT_TYPE_BECH32,
+< 
+<     OUTPUT_TYPE_DEFAULT = OUTPUT_TYPE_LEGACY
+< };
+< 
+< extern OutputType g_address_type;
+< extern OutputType g_change_type;
+< 
+216,221d202
+< unsigned int GetStakeSplitOutputs();
+< 
+< int64_t GetStakeSplitThreshold();
+< 
+< bool GetMPoSOutputScripts(std::vector<CScript> &mposScroptList, int nHeight, const Consensus::Params& consensusParams);
+< 
+246c227
+<     explicit CMerkleTx(CTransactionRef arg)
+---
+>     CMerkleTx(CTransactionRef arg)
+251a233,236
+>     /** Helper conversion operator to allow passing CMerkleTx where CTransaction is expected.
+>      *  TODO: adapt callers and remove this operator. */
+>     operator const CTransaction&() const { return *tx; }
+> 
+283a269
+>     int GetHeight() const;
+285a272,273
+>     /** Pass this transaction to the mempool. Fails if absolute fee exceeds absurd fee. */
+>     bool AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state);
+292d279
+<     //bool IsCoinStake() const { return tx->IsCoinStake(); }
+364d350
+<     mutable bool fInMempool;
+404d389
+<         fInMempool = false;
+485,486c470,471
+<     CAmount GetImmatureWatchOnlyCredit(const bool fUseCache=true) const;
+<     CAmount GetAvailableWatchOnlyCredit(const bool fUseCache=true) const;
+---
+>     CAmount GetImmatureWatchOnlyCredit(const bool& fUseCache=true) const;
+>     CAmount GetAvailableWatchOnlyCredit(const bool& fUseCache=true) const;
+509,511d493
+<     /** Pass this transaction to the mempool. Fails if absolute fee exceeds absurd fee. */
+<     bool AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state);
+< 
+587c569
+<     explicit CWalletKey(int64_t nExpires=0);
+---
+>     CWalletKey(int64_t nExpires=0);
+686d667
+< class WalletRescanReserver; //forward declarations for ScanForWalletTransactions/RescanFromTime
+691c672
+< class CWallet final : public CCryptoKeyStore, public CValidationInterface
+---
+> class CWallet : public CCryptoKeyStore, public CValidationInterface
+696,699c677
+<     std::atomic<bool> fScanningWallet; //controlled by WalletRescanReserver
+<     std::mutex mutexScanning;
+<     friend class WalletRescanReserver;
+< 
+---
+>     std::atomic<bool> fScanningWallet;
+728d705
+<     void RemoveFromSpends(const COutPoint& outpoint, const uint256& wtxid);
+730d706
+<     void RemoveFromSpends(const uint256& wtxid);
+767,778d742
+<     /**
+<      * The following is used to keep track of how far behind the wallet is
+<      * from the chain sync, and to allow clients to block on us being caught up.
+<      *
+<      * Note that this is *not* how far we've processed, we may need some rescan
+<      * to have seen all transactions in the chain, but is only used to track
+<      * live BlockConnected callbacks.
+<      *
+<      * Protected by cs_main (see BlockUntilSyncedToCurrentChain)
+<      */
+<     const CBlockIndex* m_last_block_processed;
+< 
+807,811c771,773
+<     // Map from Key ID to key metadata.
+<     std::map<CKeyID, CKeyMetadata> mapKeyMetadata;
+< 
+<     // Map from Script ID to key metadata (for watch-only keys).
+<     std::map<CScriptID, CKeyMetadata> m_script_metadata;
+---
+>     // Map from Key ID (for regular keys) or Script ID (for watch-only keys) to
+>     // key metadata.
+>     std::map<CTxDestination, CKeyMetadata> mapKeyMetadata;
+824c786
+<     explicit CWallet(std::unique_ptr<CWalletDBWrapper> dbw_in) : dbw(std::move(dbw_in))
+---
+>     CWallet(std::unique_ptr<CWalletDBWrapper> dbw_in) : dbw(std::move(dbw_in))
+867a830,831
+>     CPubKey vchDefaultKey;
+> 
+879,881d842
+<     //! select coins for staking from the available coins for staking.
+<     bool SelectCoinsForStaking(CAmount& nTargetValue, std::set<std::pair<const CWalletTx*,unsigned int> >& setCoinsRet, CAmount& nValueRet) const;
+< 	
+885,887c846
+<     void AvailableCoinsForStaking(std::vector<COutput>& vCoins) const;
+<     void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlySafe=true, const CCoinControl *coinControl = nullptr, const CAmount& nMinimumAmount = 1, const CAmount& nMaximumAmount = MAX_MONEY, const CAmount& nMinimumSumAmount = MAX_MONEY, const uint64_t nMaximumCount = 0, const int nMinDepth = 0, const int nMaxDepth = 9999999) const;
+<     bool HaveAvailableCoinsForStaking() const;
+---
+>     void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlySafe=true, const CCoinControl *coinControl = nullptr, const CAmount& nMinimumAmount = 1, const CAmount& nMaximumAmount = MAX_MONEY, const CAmount& nMinimumSumAmount = MAX_MONEY, const uint64_t& nMaximumCount = 0, const int& nMinDepth = 0, const int& nMaxDepth = 9999999) const;
+933,934c892
+<     bool LoadKeyMetadata(const CKeyID& keyID, const CKeyMetadata &metadata);
+<     bool LoadScriptMetadata(const CScriptID& script_id, const CKeyMetadata &metadata);
+---
+>     bool LoadKeyMetadata(const CTxDestination& pubKey, const CKeyMetadata &metadata);
+987c945
+<     bool GetAccountDestination(CTxDestination &dest, std::string strAccount, bool bForceNew = false);
+---
+>     bool GetAccountPubkey(CPubKey &pubKey, std::string strAccount, bool bForceNew = false);
+996,998c954,955
+<     int64_t RescanFromTime(int64_t startTime, const WalletRescanReserver& reserver, bool update);
+<     CBlockIndex* ScanForWalletTransactions(CBlockIndex* pindexStart, CBlockIndex* pindexStop, const WalletRescanReserver& reserver, bool fUpdate = false);
+<     void TransactionRemovedFromMempool(const CTransactionRef &ptx) override;
+---
+>     int64_t RescanFromTime(int64_t startTime, bool update);
+>     CBlockIndex* ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
+1011,1014d967
+<     CAmount GetStake() const;
+<     CAmount GetWatchOnlyStake() const;
+< 
+<     OutputType TransactionChangeType(OutputType change_type, const std::vector<CRecipient>& vecSend);
+1033,1034d985
+<     uint64_t GetStakeWeight() const;
+<     bool CreateCoinStake(const CKeyStore &keystore, unsigned int nBits, const CAmount& nTotalFees, uint32_t nTimeBlock, CMutableTransaction& tx, CKey& key);
+1042a994,1003
+>     /**
+>      * Estimate the minimum fee considering user set parameters
+>      * and the required fee
+>      */
+>     static CAmount GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_control, const CTxMemPool& pool, const CBlockPolicyEstimator& estimator, FeeCalculation *feeCalc);
+>     /**
+>      * Return the minimum required fee taking into account the
+>      * floating relay fee and user set minimum transaction fee
+>      */
+>     static CAmount GetRequiredFee(unsigned int nTxBytes);
+1108c1069,1074
+<     
+---
+>     void ResetRequestCount(const uint256 &hash)
+>     {
+>         LOCK(cs_wallet);
+>         mapRequestCount[hash] = 0;
+>     };
+>    
+1114a1081,1082
+>     bool SetDefaultKey(const CPubKey &vchPubKey);
+> 
+1123,1125d1090
+<   
+<     //! disable transaction for coinstake
+<     void DisableTransaction(const CTransaction &tx);   
+1135a1101,1105
+>     //! Responsible for reading and validating the -wallet arguments and verifying the wallet database.
+>     //  This function will perform salvage on the wallet if requested, as long as only one wallet is
+>     //  being loaded (CWallet::ParameterInteraction forbids -salvagewallet, -zapwallettxes or -upgradewallet with multiwallet).
+>     static bool Verify();
+>     
+1187a1158,1160
+>     /* Returns the wallets help message */
+>     static std::string GetWalletHelpString(bool showDebug);
+> 
+1189a1163
+>     static bool InitLoadWallet();
+1196a1171,1173
+>     /* Wallets parameter interaction */
+>     static bool ParameterInteraction();
+> 
+1215,1242d1191
+<     /**
+<      * Blocks until the wallet state is up-to-date to /at least/ the current
+<      * chain at the time this function is entered
+<      * Obviously holding cs_main/cs_wallet when going into this call may cause
+<      * deadlock
+<      */
+<     void BlockUntilSyncedToCurrentChain();
+< 
+<     /**
+<      * Explicitly make the wallet learn the related scripts for outputs to the
+<      * given key. This is purely to make the wallet file compatible with older
+<      * software, as CBasicKeyStore automatically does this implicitly for all
+<      * keys now.
+<      */
+<     void LearnRelatedScripts(const CPubKey& key, OutputType);
+< 
+<     /**
+<      * Same as LearnRelatedScripts, but when the OutputType is not known (and could
+<      * be anything).
+<      */
+<     void LearnAllRelatedScripts(const CPubKey& key);
+< 
+<     /**
+<      * Get a destination of the requested type (if possible) to the specified script.
+<      * This function will automatically add the necessary scripts to the wallet.
+<      */
+<     CTxDestination AddAndGetDestinationForScript(const CScript& script, OutputType);
+< 
+1257,1259d1205
+< 
+<     /* Clean token transaction entries in the wallet */
+<     bool CleanTokenTxEntries(bool fFlushOnClose=true);
+1263c1209
+< class CReserveKey final : public CReserveScript
+---
+> class CReserveKey : public CReserveScript
+1271c1217
+<     explicit CReserveKey(CWallet* pwalletIn)
+---
+>     CReserveKey(CWallet* pwalletIn)
+1348,1394d1293
+< 
+< OutputType ParseOutputType(const std::string& str, OutputType default_type = OUTPUT_TYPE_DEFAULT);
+< const std::string& FormatOutputType(OutputType type);
+< 
+< /**
+<  * Get a destination of the requested type (if possible) to the specified key.
+<  * The caller must make sure LearnRelatedScripts has been called beforehand.
+<  */
+< CTxDestination GetDestinationForKey(const CPubKey& key, OutputType);
+< 
+< /** Get all destinations (potentially) supported by the wallet for the given key. */
+< std::vector<CTxDestination> GetAllDestinationsForKey(const CPubKey& key);
+< 
+< /** RAII object to check and reserve a wallet rescan */
+< class WalletRescanReserver
+< {
+< private:
+<     CWalletRef m_wallet;
+<     bool m_could_reserve;
+< public:
+<     explicit WalletRescanReserver(CWalletRef w) : m_wallet(w), m_could_reserve(false) {}
+< 
+<     bool reserve()
+<     {
+<         assert(!m_could_reserve);
+<         std::lock_guard<std::mutex> lock(m_wallet->mutexScanning);
+<         if (m_wallet->fScanningWallet) {
+<             return false;
+<         }
+<         m_wallet->fScanningWallet = true;
+<         m_could_reserve = true;
+<         return true;
+<     }
+< 
+<     bool isReserved() const
+<     {
+<         return (m_could_reserve && m_wallet->fScanningWallet);
+<     }
+< 
+<     ~WalletRescanReserver()
+<     {
+<         std::lock_guard<std::mutex> lock(m_wallet->mutexScanning);
+<         if (m_could_reserve) {
+<             m_wallet->fScanningWallet = false;
+<         }
+<     }
+< };

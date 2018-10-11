@@ -212,7 +212,7 @@ bool parseFabcoinURI(QString uri, SendCoinsRecipient *out)
     //    which will lower-case it (and thus invalidate the address).
     if(uri.startsWith("fabcoin://", Qt::CaseInsensitive))
     {
-        uri.replace(0, 7, "fabcoin:"); // FABCOIN: change string length to 7 to correctly parse fabcoin://
+        uri.replace(0, 10, "fabcoin:");
     }
     QUrl uriInstance(uri);
     return parseFabcoinURI(uriInstance, out);

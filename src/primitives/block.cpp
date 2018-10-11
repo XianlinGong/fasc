@@ -17,7 +17,7 @@
 uint256 CBlockHeader::GetHash(const Consensus::Params& params) const
 {
     return SerializeHash(*this);
-
+    
     /*int version;
 
     if ((uint32_t) -1 == (uint32_t)params.FABHeight ) {

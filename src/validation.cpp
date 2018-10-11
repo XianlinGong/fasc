@@ -478,23 +478,6 @@ static bool IsCurrentForFeeEstimation()
     return true;
 }
 
-bool static IsFABHardForkEnabled(int nHeight, const Consensus::Params& params) {
-    return (uint32_t)nHeight >= (uint32_t)params.FABHeight;
-}
-
-bool IsFABHardForkEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params) {
-    if (pindexPrev == nullptr) {
-        return false;
-    }
-
-    return IsFABHardForkEnabled(pindexPrev->nHeight, params);
-}
-
-bool IsFABHardForkEnabledForCurrentBlock(const Consensus::Params& params) {
-    AssertLockHeld(cs_main);
-    return IsFABHardForkEnabled(chainActive.Tip(), params);
-}
-
 /* Make mempool consistent after a reorg, by re-adding or recursively erasing
  * disconnected block transactions from the mempool, and also removing any
  * other transactions from the mempool that are no longer valid given the new
@@ -1223,7 +1206,7 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
 bool CheckHeaderPoW(const CBlockHeader& block, const Consensus::Params& consensusParams)
 {
     // Check for proof of work block header
-    return CheckProofOfWork(block.GetHash(), block.nBits, consensusParams, false);
+    return CheckProofOfWork(block.GetHash(), block.nBits, consensusParams);
 }
 
 bool CheckHeaderPoS(const CBlockHeader& block, const Consensus::Params& consensusParams)
@@ -1843,7 +1826,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                 COutPoint out(hash, o);
                 Coin coin;
                 bool is_spent = view.SpendCoin(out, &coin);
-                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
+                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase || is_coinstake != coin.fCoinStake) {
                     fClean = false; // transaction output mismatch
                 }
             }
@@ -2880,10 +2863,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if((checkBlock.GetHash() != block.GetHash()) && !fJustCheck)
     {
         LogPrintf("Actual block data does not match block expected by AAL\n");
-        //CBlock dumpBlock(block); 
-        //LogPrintf("Debug Dump watched block: Height %d, others ==   %s \n", block.nHeight, dumpBlock.ToString());
-        //CBlock dumpCheckBlock(checkBlock); 
-        //LogPrintf("Debug Dump Checked block: Height %d, others ==   %s \n", checkBlock.nHeight, dumpCheckBlock.ToString());
         //Something went wrong with AAL, compare different elements and determine what the problem is
         if(checkBlock.hashMerkleRoot != block.hashMerkleRoot){
             //there is a mismatched tx, so go through and determine which txs
@@ -4107,11 +4086,8 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     }
 
     // Check proof of work matches claimed amount
-    if (fCheckPOW &&  block.IsProofOfWork() &&  !CheckProofOfWork(block.GetHash(), block.nBits,  consensusParams, false)) {
-        CBlock dumpBlock(block); 
-        LogPrintf("Dump block: Height %d, postfork=%d others == %s \n", block.nHeight, postfork, dumpBlock.ToString());
+    if (fCheckPOW && block.IsProofOfWork() && !CheckHeaderPoW(block, consensusParams))
         return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
-    }
     // PoS header proofs are not validated and always return true
     return true;
 }
@@ -4484,7 +4460,6 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
             return error("%s: Consensus::CheckBlockHeader: %s, %s", __func__, hash.ToString(), FormatStateMessage(state));
 
         // Get prev block index
-        //LogPrintf("debug AcceptBlockHeader check-prev-block-index %s(%d) - %s\n", block.GetHash().ToString() , block.nHeight, block.hashPrevBlock.ToString());
         CBlockIndex* pindexPrev = nullptr;
         BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
         if (mi == mapBlockIndex.end())
@@ -4492,8 +4467,6 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
         pindexPrev = (*mi).second;
         if (pindexPrev->nStatus & BLOCK_FAILED_MASK)
             return state.DoS(100, error("%s: prev block invalid", __func__), REJECT_INVALID, "bad-prevblk");
-
-        //LogPrintf("debug ContextualCheckBlockHeader() %s(%d)\n", block.GetHash().ToString(), block.nHeight);
         if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
             return error("%s: Consensus::ContextualCheckBlockHeader: %s, %s", __func__, hash.ToString(), FormatStateMessage(state));
 
@@ -4512,16 +4485,12 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
             }
         }
     }
-
-    if (pindex == nullptr) {
-        //LogPrintf("debug AddToBlockIndex() %s(%d)\n", block.GetHash().ToString(), block.nHeight);
+    if (pindex == nullptr)
         pindex = AddToBlockIndex(block);
-    }
 
     if (ppindex)
         *ppindex = pindex;
 
-    //LogPrintf("debug CheckBlockIndex() %s(%d)\n", block.GetHash().ToString(), block.nHeight);
     CheckBlockIndex(chainparams.GetConsensus());
 
     return true;

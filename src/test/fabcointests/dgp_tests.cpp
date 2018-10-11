@@ -313,12 +313,12 @@ bool compareUint64(const uint64_t& value1, const uint64_t& value2){
     return false;
 }
 
-void createTestContractsAndBlocks(TestChain100Setup* testChain100Setup, valtype& code1, valtype& code2, valtype& code3, dev::Address addr){
+void createTestContractsAndBlocks(TestChain800Setup* testChain800Setup, valtype& code1, valtype& code2, valtype& code3, dev::Address addr){
     std::function<void(size_t n)> generateBlocks = [&](size_t n){
         dev::h256 oldHashStateRoot = globalState->rootHash();
         dev::h256 oldHashUTXORoot = globalState->rootHashUTXO();
         for(size_t i = 0; i < n; i++)
-            testChain100Setup->CreateAndProcessBlock({}, GetScriptForRawPubKey(testChain100Setup->coinbaseKey.GetPubKey()));
+            testChain800Setup->CreateAndProcessBlock({}, GetScriptForRawPubKey(testChain800Setup->coinbaseKey.GetPubKey()));
         globalState->setRoot(oldHashStateRoot);
         globalState->setRootUTXO(oldHashUTXORoot);
     };
@@ -345,17 +345,17 @@ void createTestContractsAndBlocks(TestChain100Setup* testChain100Setup, valtype&
 
 template <typename T>
 void checkValue(T value, T value1, T value2, T value3, T value4, size_t i, std::function<bool(T&,T&)> func){
-    if(i > 599)
+    if(i > COINBASE_MATURITY + 99)
         BOOST_CHECK(func(value, value4));
-    if(599 > i && i > 550)
+    if(COINBASE_MATURITY + 99 > i && i > COINBASE_MATURITY + 50)
         BOOST_CHECK(func(value, value3));
-    if(550 > i && i > 501)
+    if(COINBASE_MATURITY + 50 > i && i > COINBASE_MATURITY + 1)
         BOOST_CHECK(func(value, value2));
-    if(501 > i && i > 0) // After initializing the tests, the height of the chain 502
+    if(COINBASE_MATURITY + 1 > i && i > 0) // After initializing the tests, the height of the chain 802
         BOOST_CHECK(func(value, value1));
 }
 
-BOOST_FIXTURE_TEST_SUITE(dgp_tests, TestChain100Setup)
+BOOST_FIXTURE_TEST_SUITE(dgp_tests, TestChain800Setup)
 
 BOOST_AUTO_TEST_CASE(gas_schedule_default_state_test1){
     initState();
@@ -401,7 +401,7 @@ BOOST_AUTO_TEST_CASE(gas_schedule_one_paramsInstance_introductory_block_1_test2)
     auto result = executeBC(txs);
 
     FabcoinDGP fabcoinDGP(globalState.get());
-    dev::eth::EVMSchedule schedule = fabcoinDGP.getGasSchedule(502); // After initializing the tests, the height of the chain 502
+    dev::eth::EVMSchedule schedule = fabcoinDGP.getGasSchedule(802); // After initializing the tests, the height of the chain 802
     BOOST_CHECK(compareEVMSchedule(schedule, EVMScheduleContractGasSchedule));
 }
 
@@ -476,7 +476,7 @@ BOOST_AUTO_TEST_CASE(block_size_one_paramsInstance_introductory_block_1_test2){
     auto result = executeBC(txs);
 
     FabcoinDGP fabcoinDGP(globalState.get());
-    uint32_t blockSize = fabcoinDGP.getBlockSize(502);
+    uint32_t blockSize = fabcoinDGP.getBlockSize(802);
     BOOST_CHECK(blockSize == 1000000);
 }
 
@@ -550,7 +550,7 @@ BOOST_AUTO_TEST_CASE(min_gas_price_one_paramsInstance_introductory_block_1_test2
     auto result = executeBC(txs);
 
     FabcoinDGP fabcoinDGP(globalState.get());
-    uint64_t minGasPrice = fabcoinDGP.getMinGasPrice(502);
+    uint64_t minGasPrice = fabcoinDGP.getMinGasPrice(802);
     BOOST_CHECK(minGasPrice == 13);
 }
 

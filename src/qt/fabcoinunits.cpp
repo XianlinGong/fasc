@@ -40,9 +40,9 @@ QString FabcoinUnits::longName(int unit)
 {
     switch(unit)
     {
-    case FAB: return QString("FABCOIN");
-    case mFAB: return QString("mFABCOIN");
-    case uFAB: return QString::fromUtf8("μFABCOIN");
+    case FAB: return QString("FAB");
+    case mFAB: return QString("mFAB");
+    case uFAB: return QString::fromUtf8("μFAB");
     default: return QString("???");
     }
 }

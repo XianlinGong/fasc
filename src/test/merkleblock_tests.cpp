@@ -11,6 +11,7 @@
 
 BOOST_FIXTURE_TEST_SUITE(merkleblock_tests, BasicTestingSetup)
 
+#if 0
 /**
  * Create a CMerkleBlock using a list of txids which will be found in the
  * given block.
@@ -75,4 +76,5 @@ BOOST_AUTO_TEST_CASE(merkleblock_construct_from_txids_not_found)
     BOOST_CHECK_EQUAL(vIndex.size(), 0);
 }
 
+#endif
 BOOST_AUTO_TEST_SUITE_END()

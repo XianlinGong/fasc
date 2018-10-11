@@ -153,7 +153,7 @@ void TestGUI()
     g_change_type = OUTPUT_TYPE_P2SH_SEGWIT;
 
     // Set up wallet and chain with 105 blocks (5 mature blocks for spending).
-    TestChain100Setup test;
+    TestChain800Setup test;
     for (int i = 0; i < 5; ++i) {
         test.CreateAndProcessBlock({}, GetScriptForRawPubKey(test.coinbaseKey.GetPubKey()));
     }
@@ -186,10 +186,10 @@ void TestGUI()
 
     // Send two transactions, and verify they are added to transaction list.
     TransactionTableModel* transactionTableModel = walletModel.getTransactionTableModel();
-    QCOMPARE(transactionTableModel->rowCount({}), 505);
+    QCOMPARE(transactionTableModel->rowCount({}), 805);
     uint256 txid1 = SendCoins(wallet, sendCoinsDialog, CKeyID(), 5 * COIN, false /* rbf */);
     uint256 txid2 = SendCoins(wallet, sendCoinsDialog, CKeyID(), 10 * COIN, true /* rbf */);
-    QCOMPARE(transactionTableModel->rowCount({}), 507);
+    QCOMPARE(transactionTableModel->rowCount({}), 807);
     QVERIFY(FindTx(*transactionTableModel, txid1).isValid());
     QVERIFY(FindTx(*transactionTableModel, txid2).isValid());
 

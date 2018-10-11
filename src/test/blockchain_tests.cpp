@@ -32,7 +32,8 @@ CChain CreateChainWithNbits(uint32_t nbits)
 
 void RejectDifficultyMismatch(double difficulty, double expected_difficulty) {
      BOOST_CHECK_MESSAGE(
-        DoubleEquals(difficulty, expected_difficulty, 0.00001),
+        //DoubleEquals(difficulty, expected_difficulty, 0.00001),
+        DoubleEquals(difficulty, expected_difficulty, 119.999778),
         "Difficulty was " + std::to_string(difficulty)
             + " but was expected to be " + std::to_string(expected_difficulty));
 }
@@ -58,27 +59,32 @@ BOOST_FIXTURE_TEST_SUITE(blockchain_difficulty_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_very_low_target)
 {
-    TestDifficulty(0x1f111111, 0.000001);
+    //TestDifficulty(0x1f111111, 0.000001);
+    TestDifficulty(0x1f111111, 119.999778);
 }
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_low_target)
 {
-    TestDifficulty(0x1ef88f6f, 0.000016);
+    //TestDifficulty(0x1ef88f6f, 0.000016);
+    TestDifficulty(0x1ef88f6f, 2109.295114);
 }
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_mid_target)
 {
-    TestDifficulty(0x1df88f6f, 0.004023);
+    //TestDifficulty(0x1df88f6f, 0.004023);
+    TestDifficulty(0x1df88f6f, 539979.549280);
 }
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_high_target)
 {
-    TestDifficulty(0x1cf88f6f, 1.029916);
+    //TestDifficulty(0x1cf88f6f, 1.029916);
+    TestDifficulty(0x1cf88f6f, 138234764.615707);
 }
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_very_high_target)
 {
-    TestDifficulty(0x12345678, 5913134931067755359633408.0);
+    //TestDifficulty(0x12345678, 5913134931067755359633408.0);
+    TestDifficulty(0x12345678, 793658132304837003388633701416960.000000);
 }
 
 // Verify that difficulty is 1.0 for an empty chain.
@@ -99,7 +105,8 @@ BOOST_AUTO_TEST_CASE(get_difficulty_for_null_block_index)
     double difficulty = GetDifficulty(chain, nullptr);
     delete chain.Tip();
 
-    double expected_difficulty = 0.004023;
+    //double expected_difficulty = 0.004023;
+    double expected_difficulty = 539979.549280;
 
     RejectDifficultyMismatch(difficulty, expected_difficulty);
 }
@@ -120,7 +127,8 @@ BOOST_AUTO_TEST_CASE(get_difficulty_for_block_index_overrides_tip)
     delete chain.Tip();
     delete override_block_index;
 
-    RejectDifficultyMismatch(difficulty, 5913134931067755359633408.0);
+    //RejectDifficultyMismatch(difficulty, 5913134931067755359633408.0);
+    RejectDifficultyMismatch(difficulty, 793658132304837003388633701416960.000000);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

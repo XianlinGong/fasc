@@ -414,7 +414,7 @@ public:
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
 
-        consensus.FABHeight = 1000000;
+        consensus.FABHeight = 0x7fffffff;
         consensus.ContractHeight = 100;
         consensus.CoinbaseLock = 0;
         consensus.ForceSegwit = false;
@@ -459,14 +459,6 @@ public:
         BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
         nEquihashN = N;
         nEquihashK = K;
-
-/*
-for (int i=0;i<20;i++) {
-        genesis = CreateGenesisBlock_legacy(1296688602, i, 0x207fffff, 5, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash(consensus);
-        std::cout << consensus.hashGenesisBlock.GetHex() << std::endl; 
-}
-*/
 
         genesis = CreateGenesisBlock_legacy(1296688602, 12, 0x207fffff, 5, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash(consensus);
@@ -529,7 +521,7 @@ public:
         consensus.BIP34Hash = uint256();
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in rpc activation tests)
         consensus.BIP66Height = 1251; // BIP66 activated on regtest (Used in rpc activation tests)
-        consensus.FABHeight = 24000;
+        consensus.FABHeight = 0x7fffffff;
         consensus.CoinbaseLock = 0;
         consensus.ForceSegwit = false;
     }
