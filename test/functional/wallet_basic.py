@@ -5,7 +5,7 @@
 """Test the wallet."""
 from test_framework.test_framework import FabcoinTestFramework
 from test_framework.util import *
-from test_framework.fabcoinconfig import INITIAL_BLOCK_REWARD, COINBASE_MATURITY
+from test_framework.fabcoinconfig import *
 
 class WalletTest(FabcoinTestFramework):
     def set_test_params(self):

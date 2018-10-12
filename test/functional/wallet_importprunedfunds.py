@@ -5,6 +5,7 @@
 """Test the importprunedfunds and removeprunedfunds RPCs."""
 from test_framework.test_framework import FabcoinTestFramework
 from test_framework.util import *
+from test_framework.fabcoinconfig import COINBASE_MATURITY
 
 class ImportPrunedFundsTest(FabcoinTestFramework):
     def set_test_params(self):

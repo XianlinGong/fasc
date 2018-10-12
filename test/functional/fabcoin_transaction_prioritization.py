@@ -6,6 +6,7 @@ from test_framework.script import *
 from test_framework.mininode import *
 from test_framework.address import *
 from test_framework.fabcoin import *
+from test_framework.fabcoinconfig import *
 import sys
 import random
 import time
@@ -14,7 +15,7 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 1
-        self.extra_args = [['-staking=1', '-rpcmaxgasprice=10000000']]
+        self.extra_args = [['-staking=0', '-rpcmaxgasprice=10000000']]
 
     def restart_node(self):
         self.stop_nodes()
@@ -37,7 +38,7 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
 
     def send_transaction_with_fee(self, fee):
         for unspent in self.node.listunspent():
-            if unspent['amount'] >= 10000:
+            if unspent['amount'] >= INITIAL_BLOCK_REWARD/2:
                 break
         addr = self.node.getnewaddress()
         haddr = p2pkh_to_hex_hash(addr)
@@ -79,7 +80,7 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
         gas_limit = 100000
         if not spends_txid:
             for unspent in self.node.listunspent():
-                if unspent['amount'] == 20000:
+                if unspent['amount'] == INITIAL_BLOCK_REWARD:
                     spends_txid = unspent['txid']
                     spends_vout = unspent['vout']
                     break
@@ -176,14 +177,6 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
         if use_staking:
             block_txs.pop(1) # Ignore the coinstake tx so we can reuse the tests for both pow and pos
 
-        for t in block_txs[1:]:
-            print(t)
-        print()
-        print(tx1)
-        print(tx2)
-        print(tx3)
-        print(tx4)
-
         assert_equal(len(block_txs), 5)
         assert_equal(block_txs[1], tx1)
         assert_equal(block_txs[2], tx2)
@@ -194,7 +187,7 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
     def verify_contract_ancestor_txs_test(self, with_restart=False, use_staking=False):
         contract_address = list(self.node.listcontracts().keys())[0]
         for unspent in self.node.listunspent():
-            if unspent['amount'] > 10000:
+            if unspent['amount'] > INITIAL_BLOCK_REWARD/2:
                 break
         address = self.node.getnewaddress()
         expected_tx_order = []
@@ -215,7 +208,7 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
             expected_tx_order.append((expected_tx_index, unspent['txid']))
 
         for unspent in self.node.listunspent():
-            if unspent['amount'] == 20000 and unspent['address'] != address:
+            if unspent['amount'] == INITIAL_BLOCK_REWARD and unspent['address'] != address:
                 break
 
         # The list of tuples specifies (expected position in block txs, gas_price)
@@ -270,20 +263,6 @@ class FabcoinTransactionPrioritizationTest(FabcoinTestFramework):
         # Verify that the mempool is empty before running more tests
         assert_equal(self.node.getrawmempool(), [])
 
-        print("running pos tests")
-        self.verify_contract_txs_are_added_last_test(use_staking=True)
-        self.verify_ancestor_chain_with_contract_txs_test(use_staking=True)
-        self.verify_contract_txs_internal_order_test(use_staking=True)
-        self.verify_contract_ancestor_txs_test(use_staking=True)
-
-        # Verify that the mempool is empty before running more tests
-        assert_equal(self.node.getrawmempool(), [])
-
-        print("running pos tests with restart")
-        self.verify_contract_txs_are_added_last_test(with_restart=True, use_staking=True)
-        self.verify_ancestor_chain_with_contract_txs_test(with_restart=True, use_staking=True)
-        self.verify_contract_txs_internal_order_test(with_restart=True, use_staking=True)
-        self.verify_contract_ancestor_txs_test(with_restart=True, use_staking=True)
 
 if __name__ == '__main__':
     FabcoinTransactionPrioritizationTest().main()

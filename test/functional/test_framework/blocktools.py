@@ -22,18 +22,19 @@ from .script import (
     hash160,
 )
 from .util import assert_equal
-from .fabcoinconfig import INITIAL_BLOCK_REWARD
+from .fabcoinconfig import *
 
 # Create a block (with regtest difficulty)
-def create_block(hashprev, coinbase, nTime=None):
+def create_block(hashprev, coinbase, nHeight, nTime=None):
     block = CBlock()
     if nTime is None:
         import time
-        block.nTime = int(time.time()+600)
+        block.nTime = int(time.time()+FABCOIN_BLOCK_DURATION)
     else:
         block.nTime = nTime
     block.hashPrevBlock = hashprev
     block.nBits = 0x207fffff # Will break after a difficulty adjustment...
+    block.nHeight = nHeight
     block.vtx.append(coinbase)
     block.hashMerkleRoot = block.calc_merkle_root()
     block.calc_sha256()

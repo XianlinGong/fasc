@@ -201,22 +201,5 @@ class FabcoinEVMGlobalsTest(FabcoinTestFramework):
         for n in self.nodes:
             n.setmocktime((self.node.getblock(self.node.getbestblockhash())['time']+100) & 0xfffffff0)
 
-        print('verify globals in PoS blocks')
-        self.verify_evm_globals_test(use_staking=True)
-        self.sync_all()
-
-        self.node.generate(257)
-        self.sync_all()
-
-        print('verify globals in MPoS blocks')
-        self.node.generate(4999 - self.node.getblockcount())
-        self.sync_all()
-
-        for n in self.nodes:
-            n.setmocktime((self.node.getblock(self.node.getbestblockhash())['time']+100) & 0xfffffff0)
-
-        self.verify_evm_globals_test(use_staking=True)
-        self.sync_all()
-
 if __name__ == '__main__':
     FabcoinEVMGlobalsTest().main()

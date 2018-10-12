@@ -38,7 +38,7 @@ class FabcoinSpendOpCallTest(FabcoinTestFramework):
         # Extract the transaction which will be the prevout to spend the contract's funds later on
         op_call_txid = prev_block['tx'][-1]
 
-        block = create_block(int(prev_block['hash'], 16), create_coinbase(prev_block['height']+1), prev_block['time']+1)
+        block = create_block(int(prev_block['hash'], 16), create_coinbase(prev_block['height']+1), prev_block['height']+1, prev_block['time']+1)
         block.hashStateRoot = int(prev_block['hashStateRoot'], 16)
         block.hashUTXORoot = int(prev_block['hashUTXORoot'], 16)
 

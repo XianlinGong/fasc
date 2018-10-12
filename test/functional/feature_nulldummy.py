@@ -58,7 +58,7 @@ class NULLDUMMYTest(FabcoinTestFramework):
             coinbase_txid.append(self.nodes[0].getblock(i)['tx'][0])
 
         for i in range(COINBASE_MATURITY):
-            block = create_block(int(self.nodes[0].getbestblockhash(), 16), create_coinbase(self.nodes[0].getblockcount()+1), int(time.time())+2+i)
+            block = create_block(int(self.nodes[0].getbestblockhash(), 16), create_coinbase(self.nodes[0].getblockcount()+1), self.nodes[0].getblockcount()+1, int(time.time())+2+i)
             block.nVersion = 4
             block.hashMerkleRoot = block.calc_merkle_root()
             block.rehash()
@@ -66,7 +66,8 @@ class NULLDUMMYTest(FabcoinTestFramework):
             self.nodes[0].submitblock(bytes_to_hex_str(block.serialize()))
 
         # Generate the number blocks signalling  that the continuation of the test case expects
-        self.nodes[0].generate(863-COINBASE_MATURITY-2-2)
+        # for 800  maturity  144*8=1152 144*6=864 144*3=432
+        self.nodes[0].generate((1152-1)-COINBASE_MATURITY-2-2)
         self.lastblockhash = self.nodes[0].getbestblockhash()
         self.tip = int("0x" + self.lastblockhash, 0)
         self.lastblockheight = self.nodes[0].getblockcount()
@@ -121,7 +122,7 @@ class NULLDUMMYTest(FabcoinTestFramework):
 
 
     def block_submit(self, node, txs, witness = False, accept = False):
-        block = create_block(self.tip, create_coinbase(self.lastblockheight + 1), self.lastblocktime + 1)
+        block = create_block(self.tip, create_coinbase(self.lastblockheight + 1), self.lastblockheight + 1, self.lastblocktime + 1)
         block.nVersion = 4
         for tx in txs:
             tx.rehash()

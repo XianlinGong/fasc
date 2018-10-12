@@ -4,6 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from test_framework.test_framework import FabcoinTestFramework
+from test_framework.fabcoinconfig import INITIAL_BLOCK_REWARD, COINBASE_MATURITY
 from test_framework.util import *
 from test_framework.script import *
 from test_framework.mininode import *
@@ -16,9 +17,9 @@ class FabcoinCallContractStateNotRevertedTest(FabcoinTestFramework):
 
     def run_test(self):
         connect_nodes_bi(self.nodes, 0, 1)
-        self.nodes[0].generate(600)
+        self.nodes[0].generate(COINBASE_MATURITY+100)
         self.sync_all()
-        self.nodes[1].generate(600)
+        self.nodes[1].generate(COINBASE_MATURITY+100)
         self.sync_all()
         contract_address = self.nodes[0].createcontract("00")['address']
         self.nodes[0].generate(1)

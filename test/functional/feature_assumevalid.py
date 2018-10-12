@@ -12,21 +12,21 @@ transactions:
 
     0:        genesis block
     1:        block 1 with coinbase transaction output.
-    2-101:    bury that block with 100 blocks so the coinbase transaction
+    2-801:    bury that block with 800 blocks so the coinbase transaction
               output can be spent
-    102:      a block containing a transaction spending the coinbase
+    802:      a block containing a transaction spending the coinbase
               transaction output. The transaction has an invalid signature.
-    103-2202: bury the bad block with just over two weeks' worth of blocks
-              (2100 blocks)
+    803-17602: bury the bad block with just over two weeks' worth of blocks
+              (2100 *8 blocks)
 
 Start three nodes:
 
-    - node0 has no -assumevalid parameter. Try to sync to block 2202. It will
-      reject block 102 and only sync as far as block 101
-    - node1 has -assumevalid set to the hash of block 102. Try to sync to
-      block 2202. node1 will sync all the way to block 2202.
-    - node2 has -assumevalid set to the hash of block 102. Try to sync to
-      block 200. node2 will reject block 102 since it's assumed valid, but it
+    - node0 has no -assumevalid parameter. Try to sync to block 17602. It will
+      reject block 802 and only sync as far as block 801
+    - node1 has -assumevalid set to the hash of block 802. Try to sync to
+      block 17602. node1 will sync all the way to block 17602.
+    - node2 has -assumevalid set to the hash of block 802. Try to sync to
+      block 900. node2 will reject block 802 since it's assumed valid, but it
       isn't buried by at least two weeks' work.
 """
 import time
@@ -115,7 +115,7 @@ class AssumeValidTest(FabcoinTestFramework):
 
         # Create the first block with a coinbase output to our key
         height = 1
-        block = create_block(self.tip, create_coinbase(height, coinbase_pubkey), self.block_time)
+        block = create_block(self.tip, create_coinbase(height, coinbase_pubkey), height, self.block_time)
         self.blocks.append(block)
         self.block_time += 1
         block.solve()
@@ -124,9 +124,9 @@ class AssumeValidTest(FabcoinTestFramework):
         self.tip = block.sha256
         height += 1
 
-        # Bury the block 100 deep so the coinbase output is spendable
-        for i in range(100):
-            block = create_block(self.tip, create_coinbase(height), self.block_time)
+        # Bury the block 800 deep so the coinbase output is spendable
+        for i in range(800):
+            block = create_block(self.tip, create_coinbase(height), height, self.block_time)
             block.solve()
             self.blocks.append(block)
             self.tip = block.sha256
@@ -136,23 +136,23 @@ class AssumeValidTest(FabcoinTestFramework):
         # Create a transaction spending the coinbase output with an invalid (null) signature
         tx = CTransaction()
         tx.vin.append(CTxIn(COutPoint(self.block1.vtx[0].sha256, 0), scriptSig=b""))
-        tx.vout.append(CTxOut(49 * 100000000, CScript([OP_TRUE])))
+        tx.vout.append(CTxOut(24 * 100000000, CScript([OP_TRUE])))
         tx.calc_sha256()
 
-        block102 = create_block(self.tip, create_coinbase(height), self.block_time)
+        block802 = create_block(self.tip, create_coinbase(height), height, self.block_time)
         self.block_time += 1
-        block102.vtx.extend([tx])
-        block102.hashMerkleRoot = block102.calc_merkle_root()
-        block102.rehash()
-        block102.solve()
-        self.blocks.append(block102)
-        self.tip = block102.sha256
+        block802.vtx.extend([tx])
+        block802.hashMerkleRoot = block802.calc_merkle_root()
+        block802.rehash()
+        block802.solve()
+        self.blocks.append(block802)
+        self.tip = block802.sha256
         self.block_time += 1
         height += 1
 
-        # Bury the assumed valid block 2100 deep
-        for i in range(2100):
-            block = create_block(self.tip, create_coinbase(height), self.block_time)
+        # Bury the assumed valid block 2100*8 deep
+        for i in range(16800):
+            block = create_block(self.tip, create_coinbase(height), height, self.block_time)
             block.nVersion = 4
             block.solve()
             self.blocks.append(block)
@@ -165,8 +165,8 @@ class AssumeValidTest(FabcoinTestFramework):
         network_thread_join()
 
         # Start node1 and node2 with assumevalid so they accept a block with a bad signature.
-        self.start_node(1, extra_args=["-assumevalid=" + hex(block102.sha256)])
-        self.start_node(2, extra_args=["-assumevalid=" + hex(block102.sha256)])
+        self.start_node(1, extra_args=["-assumevalid=" + hex(block802.sha256)])
+        self.start_node(2, extra_args=["-assumevalid=" + hex(block802.sha256)])
 
         p2p0 = self.nodes[0].add_p2p_connection(BaseNode())
         p2p1 = self.nodes[1].add_p2p_connection(BaseNode())

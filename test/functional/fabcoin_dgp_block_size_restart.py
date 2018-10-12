@@ -22,7 +22,7 @@ class FabcoinDGPActivation(FabcoinTestFramework):
 
     def create_block_of_approx_max_size(self, size_in_bytes):
         tip = self.node.getblock(self.node.getbestblockhash())
-        block = create_block(int(self.node.getbestblockhash(), 16), create_coinbase(self.node.getblockcount()+1), tip['time'])
+        block = create_block(int(self.node.getbestblockhash(), 16), create_coinbase(self.node.getblockcount()+1), self.node.getblockcount()+1, tip['time'])
         block.hashUTXORoot = int(tip['hashUTXORoot'], 16)
         block.hashStateRoot = int(tip['hashStateRoot'], 16)
 

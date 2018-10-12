@@ -8,6 +8,7 @@ import os
 
 from test_framework.test_framework import FabcoinTestFramework
 from test_framework.util import (assert_equal, assert_raises_rpc_error)
+from test_framework.fabcoinconfig import COINBASE_MATURITY
 
 
 def read_dump(file_name, addrs, script_addrs, hd_master_addr_old):
@@ -115,7 +116,7 @@ class WalletDumpTest(FabcoinTestFramework):
             read_dump(tmpdir + "/node0/wallet.unencrypted.dump", addrs, script_addrs, None)
         assert_equal(found_addr, test_addr_count)  # all keys must be in the dump
         assert_equal(found_script_addr, 2)  # all scripts must be in the dump
-        assert_equal(found_addr_chg, 525)  # 50 blocks where mined
+        assert_equal(found_addr_chg, COINBASE_MATURITY+25)  # COINBASE_MATURITY+25 blocks were mined
         assert_equal(found_addr_rsv, 90*2) # 90 keys plus 100% internal keys
         assert_equal(witness_addr_ret, witness_addr) # p2sh-p2wsh address added to the first key
 
@@ -131,7 +132,7 @@ class WalletDumpTest(FabcoinTestFramework):
             read_dump(tmpdir + "/node0/wallet.encrypted.dump", addrs, script_addrs, hd_master_addr_unenc)
         assert_equal(found_addr, test_addr_count)
         assert_equal(found_script_addr, 2)
-        assert_equal(found_addr_chg, 90*2 + 525)  # old reserve keys are marked as change now
+        assert_equal(found_addr_chg, 90*2 + COINBASE_MATURITY+25)  # old reserve keys are marked as change now
         assert_equal(found_addr_rsv, 90*2) 
         assert_equal(witness_addr_ret, witness_addr)
 

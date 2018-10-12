@@ -39,23 +39,23 @@ class TxnMallTest(FabcoinTestFramework):
         # Assign coins to foo and bar accounts:
         self.nodes[0].settxfee(.001)
 
-        node0_address_foo = self.nodes[0].getnewaddress("foo", output_type)
-        fund_foo_txid = self.nodes[0].sendfrom("", node0_address_foo, 487600)
+        node0_address_foo = self.nodes[0].getnewaddress("foo")
+        fund_foo_txid = self.nodes[0].sendfrom("", node0_address_foo, 1219)
         fund_foo_tx = self.nodes[0].gettransaction(fund_foo_txid)
 
-        node0_address_bar = self.nodes[0].getnewaddress("bar", output_type)
-        fund_bar_txid = self.nodes[0].sendfrom("", node0_address_bar, 11600)
+        node0_address_bar = self.nodes[0].getnewaddress("bar")
+        fund_bar_txid = self.nodes[0].sendfrom("", node0_address_bar, 29)
         fund_bar_tx = self.nodes[0].gettransaction(fund_bar_txid)
 
         assert_equal(self.nodes[0].getbalance(""),
-                     starting_balance - 487600 - 11600 + fund_foo_tx["fee"] + fund_bar_tx["fee"])
+                     starting_balance - 1219 - 29 + fund_foo_tx["fee"] + fund_bar_tx["fee"])
 
         # Coins are sent to node1_address
-        node1_address = self.nodes[1].getnewaddress("from0", output_type)
+        node1_address = self.nodes[1].getnewaddress("from0")
 
         # Send tx1, and another transaction tx2 that won't be cloned 
-        txid1 = self.nodes[0].sendfrom("foo", node1_address, 16000, 0)
-        txid2 = self.nodes[0].sendfrom("bar", node1_address, 8000, 0)
+        txid1 = self.nodes[0].sendfrom("foo", node1_address, 40, 0)
+        txid2 = self.nodes[0].sendfrom("bar", node1_address, 20, 0)
 
         # Construct a clone of tx1, to be malleated 
         rawtx1 = self.nodes[0].getrawtransaction(txid1,1)
@@ -64,6 +64,18 @@ class TxnMallTest(FabcoinTestFramework):
                          rawtx1["vout"][1]["scriptPubKey"]["addresses"][0]:rawtx1["vout"][1]["value"]}
         clone_locktime = rawtx1["locktime"]
         clone_raw = self.nodes[0].createrawtransaction(clone_inputs, clone_outputs, clone_locktime)
+
+        # createrawtransaction randomizes the order of its outputs, so swap them if necessary.
+        # output 0 is at version+#inputs+input+sigstub+sequence+#outputs
+        # 40 FAB serialized is 00286bee00000000
+        pos0 = 2*(4+1+36+1+4+1)
+        hex40 = "00286bee00000000"
+        output_len = 16 + 2 + 2 * int("0x" + clone_raw[pos0 + 16 : pos0 + 16 + 2], 0)
+        if (rawtx1["vout"][0]["value"] == 40 and clone_raw[pos0 : pos0 + 16] != hex40 or
+            rawtx1["vout"][0]["value"] != 40 and clone_raw[pos0 : pos0 + 16] == hex40):
+            output0 = clone_raw[pos0 : pos0 + output_len]
+            output1 = clone_raw[pos0 + output_len : pos0 + 2 * output_len]
+            clone_raw = clone_raw[:pos0] + output1 + output0 + clone_raw[pos0 + 2 * output_len:]
 
         # Use a different signature hash type to sign.  This creates an equivalent but malleated clone.
         # Don't send the clone anywhere yet
@@ -87,8 +99,8 @@ class TxnMallTest(FabcoinTestFramework):
         assert_equal(self.nodes[0].getbalance(), expected)
 
         # foo and bar accounts should be debited:
-        assert_equal(self.nodes[0].getbalance("foo", 0), 487600 + tx1["amount"] + tx1["fee"])
-        assert_equal(self.nodes[0].getbalance("bar", 0), 11600 + tx2["amount"] + tx2["fee"])
+        assert_equal(self.nodes[0].getbalance("foo", 0), 1219 + tx1["amount"] + tx1["fee"])
+        assert_equal(self.nodes[0].getbalance("bar", 0), 29 + tx2["amount"] + tx2["fee"])
 
         if self.options.mine_block:
             assert_equal(tx1["confirmations"], 1)
@@ -136,14 +148,14 @@ class TxnMallTest(FabcoinTestFramework):
 
         # Check node0's individual account balances.
         # "foo" should have been debited by the equivalent clone of tx1
-        assert_equal(self.nodes[0].getbalance("foo"), 487600 + tx1["amount"] + tx1["fee"])
+        assert_equal(self.nodes[0].getbalance("foo"), 1219 + tx1["amount"] + tx1["fee"])
         # "bar" should have been debited by (possibly unconfirmed) tx2
-        assert_equal(self.nodes[0].getbalance("bar", 0), 11600 + tx2["amount"] + tx2["fee"])
+        assert_equal(self.nodes[0].getbalance("bar", 0), 29 + tx2["amount"] + tx2["fee"])
         # "" should have starting balance, less funding txes, plus subsidies
         assert_equal(self.nodes[0].getbalance("", 0), starting_balance
-                                                                - 487600
+                                                                - 1219
                                                                 + fund_foo_tx["fee"]
-                                                                -   11600
+                                                                -   29
                                                                 + fund_bar_tx["fee"]
                                                                 +  2*INITIAL_BLOCK_REWARD)
 

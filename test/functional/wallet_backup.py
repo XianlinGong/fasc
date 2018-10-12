@@ -141,7 +141,7 @@ class WalletBackupTest(FabcoinTestFramework):
 
         # At this point, there are 214 blocks (103 for setup, then 10 rounds, then 101.)
         # 114 are mature, so the sum of all wallets should be 114 * 50 = 5700.
-        assert_equal(total, 514*INITIAL_BLOCK_REWARD)
+        assert_equal(total, (COINBASE_MATURITY+14)*INITIAL_BLOCK_REWARD)
 
         ##
         # Test restoring spender wallets from backups

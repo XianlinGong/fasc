@@ -40,7 +40,7 @@ class InvalidTxRequestTest(ComparisonTestFramework):
         Create a new block with an anyone-can-spend coinbase
         '''
         height = 1
-        block = create_block(self.tip, create_coinbase(height), self.block_time)
+        block = create_block(self.tip, create_coinbase(height), height, self.block_time)
         self.block_time += 1
         block.solve()
         # Save the coinbase for later
@@ -53,8 +53,8 @@ class InvalidTxRequestTest(ComparisonTestFramework):
         Now we need that block to mature so we can spend the coinbase.
         '''
         test = TestInstance(sync_every_block=False)
-        for i in range(500):
-            block = create_block(self.tip, create_coinbase(height), self.block_time)
+        for i in range(COINBASE_MATURITY):
+            block = create_block(self.tip, create_coinbase(height), height, self.block_time)
             block.solve()
             self.tip = block.sha256
             self.block_time += 1

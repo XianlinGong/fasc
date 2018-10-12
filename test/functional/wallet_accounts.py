@@ -50,7 +50,7 @@ class WalletAccountsTest(FabcoinTestFramework):
         # send 50 from each address to a third address not in this wallet
         # There's some fee that will come back to us when the miner reward
         # matures.
-        common_address = "qRHRiarHKXvLmpLzggX1AFvBYDtBEUioCh"
+        common_address = "msf4WtN1YQKXvNtvdFYt9JBnUD2FB41kjr"
         txid = node.sendmany(
             fromaccount="",
             amounts={common_address: 2*INITIAL_BLOCK_REWARD},

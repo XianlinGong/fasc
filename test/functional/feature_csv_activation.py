@@ -143,7 +143,7 @@ class BIP68_112_113Test(ComparisonTestFramework):
         return test_blocks
 
     def create_test_block(self, txs, version = 536870912):
-        block = create_block(self.tip, create_coinbase(self.tipheight + 1), self.last_block_time + 600)
+        block = create_block(self.tip, create_coinbase(self.tipheight + 1), self.tipheight+1, self.last_block_time + 600)
         block.nVersion = version
         block.vtx.extend(txs)
         block.hashMerkleRoot = block.calc_merkle_root()
@@ -224,10 +224,11 @@ class BIP68_112_113Test(ComparisonTestFramework):
 
         # Fail to achieve LOCKED_IN 100 out of 144 signal bit 0
         # using a variety of bits to simulate multiple parallel softforks
-        test_blocks = self.generate_blocks(50, 536870913, test_blocks) # 0x20000001 (signalling ready)
-        test_blocks = self.generate_blocks(20, 4, test_blocks) # 0x00000004 (signalling not)
-        test_blocks = self.generate_blocks(50, 536871169, test_blocks) # 0x20000101 (signalling ready)
-        test_blocks = self.generate_blocks(24, 536936448, test_blocks) # 0x20010000 (signalling not)
+        for i in range(4):
+            test_blocks = self.generate_blocks(50, 536870913, test_blocks) # 0x20000001 (signalling ready)
+            test_blocks = self.generate_blocks(20, 4, test_blocks) # 0x00000004 (signalling not)
+            test_blocks = self.generate_blocks(50, 536871169, test_blocks) # 0x20000101 (signalling ready)
+            test_blocks = self.generate_blocks(24, 536936448, test_blocks) # 0x20010000 (signalling not)
 
         # 108 out of 144 signal bit 0 to achieve lock-in
         # using a variety of bits to simulate multiple parallel softforks
@@ -264,17 +265,17 @@ class BIP68_112_113Test(ComparisonTestFramework):
         # Advanced from DEFINED to STARTED, height = 143
         assert_equal(get_bip9_status(self.nodes[0], 'csv')['status'], 'started')
 
-        yield TestInstance(test_blocks[61:61+144], sync_every_block=True) # 2
+        yield TestInstance(test_blocks[61:61+144*4], sync_every_block=True) # 2
         # Failed to advance past STARTED, height = 287
         assert_equal(get_bip9_status(self.nodes[0], 'csv')['status'], 'started')
 
-        yield TestInstance(test_blocks[61+144:61+144+144], sync_every_block=True) # 3
+        yield TestInstance(test_blocks[61+144*4:61+144*4+144], sync_every_block=True) # 3
         # Advanced from STARTED to LOCKED_IN, height = 431
         assert_equal(get_bip9_status(self.nodes[0], 'csv')['status'], 'locked_in')
 
-        yield TestInstance(test_blocks[61+144+144:61+144+144+130], sync_every_block=True) # 4
+        yield TestInstance(test_blocks[61+144*4+144:61+144*4+144+130], sync_every_block=True) # 4
 
-        yield TestInstance(test_blocks[61+144+144+130:61+144+144+130+10], sync_every_block=True) # 4
+        yield TestInstance(test_blocks[61+144*4+144+130:61+144*4+144+130+10], sync_every_block=True) # 4
 
         self.nodes[0].generate(1)
         self.tip = int("0x" + self.nodes[0].getbestblockhash(), 0)

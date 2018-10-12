@@ -16,6 +16,7 @@ from test_framework.blocktools import create_coinbase
 from test_framework.mininode import CBlock
 from test_framework.test_framework import FabcoinTestFramework
 from test_framework.util import assert_equal, assert_raises_rpc_error
+from test_framework.fabcoinconfig import *
 
 def b2x(b):
     return b2a_hex(b).decode('ascii')
@@ -23,7 +24,7 @@ def b2x(b):
 def assert_template(node, block, expect, rehash=True):
     if rehash:
         block.hashMerkleRoot = block.calc_merkle_root()
-    rsp = node.getblocktemplate({'data': b2x(block.serialize()), 'mode': 'proposal'})
+    rsp = node.getblocktemplate({'data': b2x(block.serialize()), 'mode': 'proposal_legacy'})
     assert_equal(rsp, expect)
 
 class MiningTest(FabcoinTestFramework):
@@ -36,12 +37,12 @@ class MiningTest(FabcoinTestFramework):
 
         self.log.info('getmininginfo')
         mining_info = node.getmininginfo()
-        assert_equal(mining_info['blocks'], 600)
+        assert_equal(mining_info['blocks'], COINBASE_MATURITY+100)
         assert_equal(mining_info['chain'], 'regtest')
         assert_equal(mining_info['currentblocktx'], 0)
         assert_equal(mining_info['currentblockweight'], 0)
         assert_equal(mining_info['difficulty']['proof-of-work'], Decimal('4.656542373906925E-10'))
-        assert_equal(mining_info['networkhashps'], Decimal('0.015625'))
+        assert_equal(mining_info['networkhashps'], Decimal('0.02666666666666667'))
         assert_equal(mining_info['pooledtx'], 0)
 
         # Mine a block to leave initial block download
@@ -61,6 +62,7 @@ class MiningTest(FabcoinTestFramework):
         block.hashPrevBlock = int(tmpl["previousblockhash"], 16)
         block.nTime = tmpl["curtime"]
         block.nBits = int(tmpl["bits"], 16)
+        block.nHeight = int(tmpl["height"])
         block.nNonce = 0
         block.vtx = [coinbase_tx]
 
@@ -80,7 +82,7 @@ class MiningTest(FabcoinTestFramework):
         assert_raises_rpc_error(-22, "Block does not start with a coinbase", node.submitblock, b2x(bad_block.serialize()))
 
         self.log.info("getblocktemplate: Test truncated final transaction")
-        assert_raises_rpc_error(-22, "Block decode failed", node.getblocktemplate, {'data': b2x(block.serialize()[:-1]), 'mode': 'proposal'})
+        assert_raises_rpc_error(-22, "Block decode failed", node.getblocktemplate, {'data': b2x(block.serialize()[:-1]), 'mode': 'proposal_legacy'})
 
         self.log.info("getblocktemplate: Test duplicate transaction")
         bad_block = copy.deepcopy(block)
@@ -103,11 +105,11 @@ class MiningTest(FabcoinTestFramework):
 
         self.log.info("getblocktemplate: Test bad tx count")
         # The tx count is immediately after the block header
-        TX_COUNT_OFFSET = 181
+        TX_COUNT_OFFSET = 148
         bad_block_sn = bytearray(block.serialize())
         assert_equal(bad_block_sn[TX_COUNT_OFFSET], 1)
         bad_block_sn[TX_COUNT_OFFSET] += 1
-        assert_raises_rpc_error(-22, "Block decode failed", node.getblocktemplate, {'data': b2x(bad_block_sn), 'mode': 'proposal'})
+        assert_raises_rpc_error(-22, "Block decode failed", node.getblocktemplate, {'data': b2x(bad_block_sn), 'mode': 'proposal_legacy'})
 
         self.log.info("getblocktemplate: Test bad bits")
         bad_block = copy.deepcopy(block)
