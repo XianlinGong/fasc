@@ -22,7 +22,7 @@ from test_framework.fabcoinconfig import *
 from io import BytesIO
 
 NODE_0 = 0
-NODE_1 = 1
+
 NODE_2 = 2
 WIT_V0 = 0
 WIT_V1 = 1
@@ -131,7 +131,7 @@ class SegWitTest(FabcoinTestFramework):
         sync_blocks(self.nodes)
 
         # Make sure all nodes recognize the transactions as theirs
-        assert_equal(self.nodes[0].getbalance(), balance_presetup - 60*INITIAL_BLOCK_REWARD + 20*(INITIAL_BLOCK_REWARD - Decimal("0.001")) + INITIAL_BLOCK_REWARD)
+        assert_equal(self.nodes[0].getbalance(), balance_presetup - 60*INITIAL_BLOCK_REWARD + 20*(INITIAL_BLOCK_REWARD - Decimal("0.001")) )
         assert_equal(self.nodes[1].getbalance(), 20*(INITIAL_BLOCK_REWARD - Decimal("0.001")))
         assert_equal(self.nodes[2].getbalance(), 20*(INITIAL_BLOCK_REWARD - Decimal("0.001")))
 
