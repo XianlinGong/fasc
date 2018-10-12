@@ -75,7 +75,7 @@ class SegWitTest(FabcoinTestFramework):
     def run_test(self):
         self.nodes[0].generate(161) #block 161
         for i in range(8*144 - 161):
-            block = create_block(int(self.nodes[0].getbestblockhash(), 16), create_coinbase(self.nodes[0].getblockcount() + 1), int(time.time())+2+i)
+            block = create_block(int(self.nodes[0].getbestblockhash(), 16), create_coinbase(self.nodes[0].getblockcount() + 1), self.nodes[0].getblockcount() + 1, int(time.time())+2+i)
             block.nVersion = 4
             block.hashMerkleRoot = block.calc_merkle_root()
             block.rehash()
