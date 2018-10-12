@@ -264,7 +264,7 @@ class SendHeadersTest(FabcoinTestFramework):
         test_node.check_last_announcement(headers=[tip_hash])
 
         self.log.info("Verify getheaders with null locator and invalid hashstop does not return headers.")
-        block = create_block(int(tip["hash"], 16), create_coinbase(tip["height"] + 1), tip["mediantime"] + 1)
+        block = create_block(int(tip["hash"], 16), create_coinbase(tip["height"] + 1), tip["height"] + 1, tip["mediantime"] + 1)
         block.solve()
         test_node.send_header_for_blocks([block])
         test_node.clear_last_announcement()
@@ -336,7 +336,7 @@ class SendHeadersTest(FabcoinTestFramework):
             for j in range(2):
                 blocks = []
                 for b in range(i + 1):
-                    blocks.append(create_block(tip, create_coinbase(height), block_time))
+                    blocks.append(create_block(tip, create_coinbase(height), height, block_time))
                     blocks[-1].solve()
                     tip = blocks[-1].sha256
                     block_time += 1
@@ -554,7 +554,7 @@ class SendHeadersTest(FabcoinTestFramework):
         # don't go into an infinite loop trying to get them to connect.
         MAX_UNCONNECTING_HEADERS = 10
         for j in range(MAX_UNCONNECTING_HEADERS + 1):
-            blocks.append(create_block(tip, create_coinbase(height), block_time))
+            blocks.append(create_block(tip, create_coinbase(height), height, block_time))
             blocks[-1].solve()
             tip = blocks[-1].sha256
             block_time += 1

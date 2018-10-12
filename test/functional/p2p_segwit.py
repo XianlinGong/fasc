@@ -41,7 +41,7 @@ def submit_old_blocks(node, n):
         tip = node.getbestblockhash()
         height = node.getblockcount() + 1
         block_time = node.getblockheader(tip)["mediantime"] + 1
-        block = create_block(int(tip, 16), create_coinbase(height), block_time)
+        block = create_block(int(tip, 16), create_coinbase(height), height, block_time)
         block.vtx[0].vout[0].scriptPubKey = CScript([hex_str_to_bytes(pubkey), OP_CHECKSIG])
         block.vtx[0].rehash()
         block.hashMerkleRoot = block.calc_merkle_root()
@@ -153,7 +153,7 @@ class SegWitTest(FabcoinTestFramework):
         tip = self.nodes[0].getbestblockhash()
         height = self.nodes[0].getblockcount() + 1
         block_time = self.nodes[0].getblockheader(tip)["mediantime"] + 1
-        block = create_block(int(tip, 16), create_coinbase(height), block_time)
+        block = create_block(int(tip, 16), create_coinbase(height), height, block_time)
         block.nVersion = nVersion
         block.rehash()
         return block

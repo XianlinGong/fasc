@@ -25,7 +25,7 @@ class BIP68Test(FabcoinTestFramework):
         self.relayfee = self.nodes[0].getnetworkinfo()["relayfee"]
 
         # Generate some coins
-        self.nodes[0].generate(110)
+        self.nodes[0].generate(810)
 
         self.log.info("Running test disable flag")
         self.test_disable_flag()
@@ -80,7 +80,7 @@ class BIP68Test(FabcoinTestFramework):
         tx2.nVersion = 2
         sequence_value = sequence_value & 0x7fffffff
         tx2.vin = [CTxIn(COutPoint(tx1_id, 0), nSequence=sequence_value)]
-        tx2.vout = [CTxOut(int(value-self.relayfee*COIN), CScript([b'a' * 35]))]
+        tx2.vout = [CTxOut(int(value-self.relayfee*COIN), CScript([b'a']))]
         tx2.rehash()
 
         assert_raises_rpc_error(-26, NOT_FINAL_ERROR, self.nodes[0].sendrawtransaction, ToHex(tx2))
@@ -105,7 +105,7 @@ class BIP68Test(FabcoinTestFramework):
         addresses = []
         while len(addresses) < max_outputs:
             addresses.append(self.nodes[0].getnewaddress())
-        while len(self.nodes[0].listunspent()) < 200:
+        while len(self.nodes[0].listunspent()) < 900:
             import random
             random.shuffle(addresses)
             num_outputs = random.randint(1, max_outputs)
@@ -222,7 +222,7 @@ class BIP68Test(FabcoinTestFramework):
             tx = CTransaction()
             tx.nVersion = 2
             tx.vin = [CTxIn(COutPoint(orig_tx.sha256, 0), nSequence=sequence_value)]
-            tx.vout = [CTxOut(int(orig_tx.vout[0].nValue - relayfee*COIN), CScript([b'a' * 35]))]
+            tx.vout = [CTxOut(int(orig_tx.vout[0].nValue - relayfee*COIN), CScript([b'a']))]
             tx.rehash()
 
             if (orig_tx.hash in node.getrawmempool()):
@@ -242,9 +242,9 @@ class BIP68Test(FabcoinTestFramework):
         self.nodes[0].prioritisetransaction(txid=tx2.hash, fee_delta=int(-self.relayfee*COIN))
         cur_time = int(time.time())
         for i in range(10):
-            self.nodes[0].setmocktime(cur_time + 75)
+            self.nodes[0].setmocktime(cur_time + 600)
             self.nodes[0].generate(1)
-            cur_time += 75
+            cur_time += 600
 
         assert(tx2.hash in self.nodes[0].getrawmempool())
 
@@ -255,7 +255,7 @@ class BIP68Test(FabcoinTestFramework):
         self.nodes[0].prioritisetransaction(txid=tx2.hash, fee_delta=int(self.relayfee*COIN))
 
         # Advance the time on the node so that we can test timelocks
-        self.nodes[0].setmocktime(cur_time+75)
+        self.nodes[0].setmocktime(cur_time+600)
         self.nodes[0].generate(1)
         assert(tx2.hash not in self.nodes[0].getrawmempool())
 
@@ -350,7 +350,7 @@ class BIP68Test(FabcoinTestFramework):
         tx3 = CTransaction()
         tx3.nVersion = 2
         tx3.vin = [CTxIn(COutPoint(tx2.sha256, 0), nSequence=sequence_value)]
-        tx3.vout = [CTxOut(int(tx2.vout[0].nValue - self.relayfee*COIN), CScript([b'a'* 35]))]
+        tx3.vout = [CTxOut(int(tx2.vout[0].nValue - self.relayfee*COIN), CScript([b'a']))]
         tx3.rehash()
 
         assert_raises_rpc_error(-26, NOT_FINAL_ERROR, self.nodes[0].sendrawtransaction, ToHex(tx3))

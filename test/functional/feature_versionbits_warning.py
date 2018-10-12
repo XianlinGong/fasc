@@ -47,7 +47,7 @@ class VersionBitsWarningTest(FabcoinTestFramework):
         tip = int(tip, 16)
 
         for _ in range(numblocks):
-            block = create_block(tip, create_coinbase(height + 1), block_time)
+            block = create_block(tip, create_coinbase(height + 1), height+1, block_time)
             block.nVersion = version
             block.solve()
             peer.send_message(msg_block(block))
