@@ -1915,7 +1915,7 @@ UniValue gettxoutset(const JSONRPCRequest& request)
         + HelpExampleRpc("gettxoutset", "")
         );
 
-    UniValue ret(UniValue::VOBJ);
+    UniValue ret(UniValue::VARR);
 
     CCoinsStats stats;
     FlushStateToDisk();
@@ -1943,9 +1943,10 @@ UniValue gettxoutset(const JSONRPCRequest& request)
             {
                 for( const CTxDestination addr: addresses )
                 {
-                    strUtxo << coin.nHeight << ", " << key.hash.ToString() << ", " << key.n << ", " << EncodeDestination(addr) << ", " << coin.out.nValue  << ", " << coin.fCoinBase;
+                    //strUtxo << coin.nHeight << ", " << CFabcoinAddress(addr).ToString() << ", " << coin.out.nValue ;
 
-                    ret.push_back(Pair("UTXO", strUtxo.str()));
+                    strUtxo << coin.nHeight << ", " << key.hash.ToString() << ", " << key.n << ", " << CFabcoinAddress(addr).ToString() << ", " << coin.out.nValue ;
+                    ret.push_back(strUtxo.str());
                 }
             }
             else
@@ -2541,7 +2542,8 @@ UniValue getchaintxstats(const JSONRPCRequest& request)
         );
 
     const CBlockIndex* pindex;
-    int blockcount = 30 * 24 * 60 * 60 / Params().GetConsensus().nPowTargetSpacing; // By default: 1 month
+
+    int blockcount = 30 * 24 * 60 * 60 / Params().GetnPowTargetSpacing(chainActive.Height()); // By default: 1 month
 
     bool havehash = !request.params[1].isNull();
     uint256 hash;

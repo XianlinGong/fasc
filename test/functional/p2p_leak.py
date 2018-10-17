@@ -95,7 +95,8 @@ class P2PLeakTest(FabcoinTestFramework):
         self.extra_args = [['-banscore='+str(banscore)]]
 
     def run_test(self):
-        self.nodes[0].setmocktime(1501545600)  # August 1st 2017
+        #self.nodes[0].setmocktime(1501545600)  # August 1st 2017
+        self.nodes[0].setmocktime(1504762080)
 
         no_version_bannode = self.nodes[0].add_p2p_connection(CNodeNoVersionBan(), send_version=False)
         no_version_idlenode = self.nodes[0].add_p2p_connection(CNodeNoVersionIdle(), send_version=False)
@@ -112,6 +113,7 @@ class P2PLeakTest(FabcoinTestFramework):
         wait_until(lambda: unsupported_service_bit7_node.ever_connected, timeout=10, lock=mininode_lock)
 
         # Mine a block and make sure that it's not sent to the connected nodes
+        #print(self.nodes[0].getinfo())
         self.nodes[0].generate(1)
 
         #Give the node enough time to possibly leak out a message

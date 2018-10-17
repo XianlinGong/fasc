@@ -79,6 +79,15 @@ int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParam
     return nNewTime - nOldTime;
 }
 
+bool IsBlockTooLate(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
+{
+    if( GetAdjustedTime() > std::max(pblock->GetBlockTime(), pindexPrev->GetBlockTime()) + Params().GetnPowTargetSpacing(pindexPrev->nHeight+1) * consensusParams.MaxBlockInterval ) 
+    {
+        return true;
+    }
+    return false;
+}
+
 BlockAssembler::Options::Options() {
     blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
@@ -285,7 +294,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
     pblock->nHeight        = pindexPrev->nHeight + 1;
     memset(pblock->nReserved, 0, sizeof(pblock->nReserved));
-
+    pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus(),fProofOfStake);
 
     arith_uint256 nonce;
     if ((uint32_t)nHeight >= (uint32_t)chainparams.GetConsensus().FABHeight) {
@@ -1191,8 +1200,8 @@ void static FabcoinMiner(const CChainParams& chainparams, GPUConfig conf, int th
             n = chainparams.EquihashN(pblock->nHeight);
             k = chainparams.EquihashK(pblock->nHeight);
 
-            LogPrintf("FabcoinMiner mining   with %u transactions in block (%u bytes) @(%s)  \n", pblock->vtx.size(),
-                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION), conf.useGPU?"GPU":"CPU" );
+            LogPrintf("FabcoinMiner mining   with %u transactions in block (%u bytes) @(%s)  n=%d, k=%d\n", pblock->vtx.size(),
+                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION), conf.useGPU?"GPU":"CPU", n, k );
 
             headerlen = (pblock->nHeight < (uint32_t)chainparams.GetConsensus().ContractHeight) ? CBlockHeader::HEADER_SIZE : CBlockHeader::HEADER_NEWSIZE;
             //
@@ -1204,9 +1213,9 @@ void static FabcoinMiner(const CChainParams& chainparams, GPUConfig conf, int th
 
             nCounter = 0;
             if (conf.useGPU)
-                LogPrint(BCLog::POW, "Equihash solver (%d,%d) in GPU (%u, %u) with nNonce = %s hashTarget=%s\n", n, k, conf.currentPlatform, conf.currentDevice, pblock->nNonce.ToString(), hashTarget.GetHex());
+                LogPrint(BCLog::POW, "Equihash solver in GPU (%u, %u) with nNonce = %s hashTarget=%s\n", conf.currentPlatform, conf.currentDevice, pblock->nNonce.ToString(), hashTarget.GetHex());
             else 
-                LogPrint(BCLog::POW, "Equihash solver (%d,%d) in CPU with nNonce = %s hashTarget=%s\n", n, k, pblock->nNonce.ToString(), hashTarget.GetHex());
+                LogPrint(BCLog::POW, "Equihash solver in CPU with nNonce = %s hashTarget=%s\n", pblock->nNonce.ToString(), hashTarget.GetHex());
   
             double secs, solps;
             g_nSols[thr_id] = 0;
@@ -1350,6 +1359,17 @@ void static FabcoinMiner(const CChainParams& chainparams, GPUConfig conf, int th
                 //    break; // Recreate the block if the clock has run backwards,
 
                 // so that we can use the correct time.
+
+
+                if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks)
+                {
+                    // check if the new block will come too late. If so, create the block again to change block time
+                    if( IsBlockTooLate( pblock, chainparams.GetConsensus(), pindexPrev ) )
+                    {
+                        break;
+                    }
+                }
+
                 if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks)
                 {
                     // Changing pblock->nTime can change work required on testnet:
@@ -1500,7 +1520,7 @@ void static FabcoinMinerCuda(const CChainParams& chainparams, GPUConfig conf, in
 
             try
             {
-                if ( pblock->nHeight < (uint32_t)chainparams.GetConsensus().ContractHeight)   // before fork
+                if ( pblock->nHeight < (uint32_t)chainparams.GetConsensus().EquihashFABHeight)   // before fork
                 {
                     if( g_solver184_7 ) 
                     {
@@ -1562,7 +1582,7 @@ void static FabcoinMinerCuda(const CChainParams& chainparams, GPUConfig conf, in
                 try {
                     bool found = false;
 
-                    if ( pblock->nHeight < (uint32_t)chainparams.GetConsensus().ContractHeight )   // before fork
+                    if ( pblock->nHeight < (uint32_t)chainparams.GetConsensus().EquihashFABHeight )   // before fork
                     {
                         if( g_solver )
                             found = g_solver->solve((unsigned char *)pblock, header, headerlen);
@@ -1602,6 +1622,17 @@ void static FabcoinMinerCuda(const CChainParams& chainparams, GPUConfig conf, in
                 //if (UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev) < 0)
                 //    break; // Recreate the block if the clock has run backwards,
                 // so that we can use the correct time.
+
+
+                if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks)
+                {
+                    // check if the new block will come too late. If so, create the block again to change block time
+                    if( IsBlockTooLate( pblock, chainparams.GetConsensus(), pindexPrev ) )
+                    {
+                        break;
+                    }
+                }
+
                 if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks)
                 {
                     // Changing pblock->nTime can change work required on testnet:
@@ -1733,15 +1764,29 @@ void GenerateFabcoins(bool fGenerate, int nThreads, const CChainParams& chainpar
                     devices[device].getInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &result);
 
                     int maxThreads = nThreads;
+                    CBlockIndex* pindexPrev = chainActive.Tip();
+
                     if (!conf.forceGenProcLimit) {
-                        if (result > 7500000000) {
-                            maxThreads = std::min(4, nThreads);
-                        } else if (result > 5500000000) {
-                            maxThreads = std::min(3, nThreads);
-                        } else if (result > 3500000000) {
-                            maxThreads = std::min(2, nThreads);
-                        } else {
-                            maxThreads = std::min(1, nThreads);
+
+                        if( (pindexPrev->nHeight+1) < chainparams.GetConsensus().EquihashFABHeight )
+                        {
+                            if (result > 7500000000) {
+                                maxThreads = std::min(4, nThreads);
+                            } else if (result > 5500000000) {
+                                maxThreads = std::min(3, nThreads);
+                            } else if (result > 3500000000) {
+                                maxThreads = std::min(2, nThreads);
+                            } else {
+                                maxThreads = std::min(1, nThreads);
+                            }
+                        }
+                        else
+                        {
+                            if (result > 7500000000) {
+                                maxThreads = std::min(2, nThreads);
+                            } else {
+                                maxThreads = std::min(1, nThreads);
+                            }
                         }
                     }
 

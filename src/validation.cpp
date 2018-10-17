@@ -4296,8 +4296,11 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
         return state.Invalid(false, REJECT_INVALID, "time-too-old", "block's timestamp is too early");
 
     // Check timestamp
-    if (block.IsProofOfStake() && block.GetBlockTime() > FutureDrift(nAdjustedTime))
+    //if (block.IsProofOfStake() && block.GetBlockTime() > FutureDrift(nAdjustedTime)){
+    if (block.GetBlockTime() > nAdjustedTime + std::min(consensusParams.MaxFutureBlockTime, MAX_FUTURE_BLOCK_TIME)){
+        LogPrintf(" Debug block.GetBlockTime()=%d nAdjustedTime=%d MAX_FUTURE_BLOCK_TIME=%d MaxFutureBlockTime=%d futureDrift=%d", block.GetBlockTime(), nAdjustedTime, MAX_FUTURE_BLOCK_TIME, consensusParams.MaxFutereBlockTime, FutureDrift(nAdjustedTime) );
         return state.Invalid(false, REJECT_INVALID, "time-too-new", "block timestamp too far in the future");
+    }
 
     // Reject outdated version blocks when 95% (75% on testnet) of the network has upgraded:
     // check for version 2, 3 and 4 upgrades
