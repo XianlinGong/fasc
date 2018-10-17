@@ -1,0 +1,74 @@
+chainparams.cpp:    genesis.hashUTXORoot = uint256(h256Touint(dev::sha3(dev::rlp("")))); // fasc
+chainparams.cpp:    genesis.hashUTXORoot = uint256(h256Touint(dev::sha3(dev::rlp("")))); // fasc
+chainparams.cpp:        consensus.nFixUTXOCacheHFHeight=100000;
+chainparams.cpp:        consensus.nFixUTXOCacheHFHeight=84500;
+chainparams.cpp:        consensus.nFixUTXOCacheHFHeight=0;
+init.cpp:    // until the very end ("start node") as the UTXO/block state
+init.cpp:    LogPrintf("* Using %.1fMiB for in-memory UTXO set (plus up to %.1fMiB of unused mempool space)\n", nCoinCacheUsage * (1.0 / 1024 / 1024), nMempoolSizeMax * (1.0 / 1024 / 1024));
+init.cpp:                if(chainActive.Tip() != nullptr && !chainActive.Tip()->hashStateRoot.IsNull() && !chainActive.Tip()->hashUTXORoot.IsNull() ){
+init.cpp:                    globalState->setRootUTXO(uintToh256(chainActive.Tip()->hashUTXORoot));
+init.cpp:                    globalState->setRootUTXO(uintToh256(chainparams.GenesisBlock().hashUTXORoot));
+miner.cpp:    dev::h256 oldHashUTXORoot(globalState->rootHashUTXO());
+miner.cpp:    pblock->hashUTXORoot = uint256(h256Touint(dev::h256(globalState->rootHashUTXO())));
+miner.cpp:    globalState->setRootUTXO(oldHashUTXORoot);
+miner.cpp:    pblock->hashUTXORoot = uint256(h256Touint(dev::h256(globalState->rootHashUTXO())));
+miner.cpp:    dev::h256 oldHashUTXORoot(globalState->rootHashUTXO());
+miner.cpp:        globalState->setRootUTXO(oldHashUTXORoot);
+miner.cpp:        globalState->setRootUTXO(oldHashUTXORoot);
+miner.cpp:        globalState->setRootUTXO(oldHashUTXORoot);
+miner.cpp:        globalState->setRootUTXO(oldHashUTXORoot);
+miner.cpp:                return error("CheckStake() : generated block became invalid due to stake UTXO being spent");
+net_processing.cpp:            headers[n].hashUTXORoot = uint256S("21b463e3b52f6201c0ad6c991be0485b6ef8c092e64583ffa655cc1b171fe856");
+rest.cpp:static const size_t MAX_GETUTXOS_OUTPOINTS = 15; //allow a max of 15 outpoints to be queried at once
+rest.cpp:    if (vOutPoints.size() > MAX_GETUTXOS_OUTPOINTS)
+rest.cpp:        return RESTERR(req, HTTP_BAD_REQUEST, strprintf("Error: max outpoints exceeded (max: %d, tried: %d)", MAX_GETUTXOS_OUTPOINTS, vOutPoints.size()));
+rest.cpp:        CDataStream ssGetUTXOResponse(SER_NETWORK, PROTOCOL_VERSION);
+rest.cpp:        ssGetUTXOResponse << chainActive.Height() << chainActive.Tip()->GetBlockHash() << bitmap << outs;
+rest.cpp:        std::string ssGetUTXOResponseString = ssGetUTXOResponse.str();
+rest.cpp:        req->WriteReply(HTTP_OK, ssGetUTXOResponseString);
+rest.cpp:        CDataStream ssGetUTXOResponse(SER_NETWORK, PROTOCOL_VERSION);
+rest.cpp:        ssGetUTXOResponse << chainActive.Height() << chainActive.Tip()->GetBlockHash() << bitmap << outs;
+rest.cpp:        std::string strHex = HexStr(ssGetUTXOResponse.begin(), ssGetUTXOResponse.end()) + "\n";
+rest.cpp:        UniValue objGetUTXOResponse(UniValue::VOBJ);
+rest.cpp:        objGetUTXOResponse.push_back(Pair("chainHeight", chainActive.Height()));
+rest.cpp:        objGetUTXOResponse.push_back(Pair("chaintipHash", chainActive.Tip()->GetBlockHash().GetHex()));
+rest.cpp:        objGetUTXOResponse.push_back(Pair("bitmap", bitmapStringRepresentation));
+rest.cpp:        objGetUTXOResponse.push_back(Pair("utxos", utxos));
+rest.cpp:        std::string strJSON = objGetUTXOResponse.write() + "\n";
+txdb.cpp:                pindexNew->hashUTXORoot   = diskindex.hashUTXORoot; // fabcoin
+txdb.cpp:    uiInterface.ShowProgress(_("Upgrading UTXO database"), 0, true);
+txdb.cpp:                uiInterface.ShowProgress(_("Upgrading UTXO database"), percentageDone, true);
+validation.cpp:    DISCONNECT_UNCLEAN, // Rolled back, but UTXO set was inconsistent with block.
+validation.cpp:        // pcoinsTip contains the UTXO set for chainActive.Tip()
+validation.cpp:                    // Rather than check the UTXO set - potentially expensive -
+validation.cpp: * This does not modify the UTXO set.
+validation.cpp: * Restore the UTXO in a Coin at a given COutPoint
+validation.cpp:/** Undo the effects of this block (with given index) on the UTXO set represented by coins.
+validation.cpp:    globalState->setRootUTXO(uintToh256(pindex->pprev->hashUTXORoot)); // fabcoin
+validation.cpp:/** Apply the effects of this block (with given index) on the UTXO set represented by coins.
+validation.cpp: *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
+validation.cpp:            // be in ConnectBlock because they require the UTXO set
+validation.cpp:    checkBlock.hashUTXORoot = h256Touint(globalState->rootHashUTXO());
+validation.cpp:        if(checkBlock.hashUTXORoot != block.hashUTXORoot){
+validation.cpp:            LogPrintf("Actual block data does not match hashUTXORoot expected by AAL block\n");
+validation.cpp:        return state.DoS(100, error("ConnectBlock(): Incorrect AAL transactions or hashes (hashStateRoot, hashUTXORoot)"),
+validation.cpp:        dev::h256 prevHashUTXORoot(dev::sha3(dev::rlp("")));
+validation.cpp:        if(pindex->pprev->hashStateRoot != uint256() && pindex->pprev->hashUTXORoot != uint256()){
+validation.cpp:            prevHashUTXORoot = uintToh256(pindex->pprev->hashUTXORoot);
+validation.cpp:        globalState->setRootUTXO(prevHashUTXORoot);
+validation.cpp: * Used to track blocks whose transactions were applied to the UTXO state as a
+validation.cpp:        dev::h256 oldHashUTXORoot(globalState->rootHashUTXO()); // fabcoin
+validation.cpp:            globalState->setRootUTXO(oldHashUTXORoot); // fabcoin
+validation.cpp:        // caused an assert() failure during shutdown in such cases as the UTXO DB flushing checks
+validation.cpp:        // This allows to not pollute UTXO set with useless outputs e.g. in case of multisig staking
+validation.cpp: *  By "context", we mean only the previous block headers, but not the UTXO
+validation.cpp: *  set; UTXO-related validity checks are done in ConnectBlock().
+validation.cpp:    dev::h256 oldHashUTXORoot(globalState->rootHashUTXO()); // fabcoin
+validation.cpp:        globalState->setRootUTXO(oldHashUTXORoot); // fabcoin
+validation.cpp:    dev::h256 oldHashUTXORoot(globalState->rootHashUTXO());
+validation.cpp:            dev::h256 oldHashUTXORoot(globalState->rootHashUTXO()); // fabcoin
+validation.cpp:                globalState->setRootUTXO(oldHashUTXORoot); // fabcoin
+validation.cpp:        globalState->setRootUTXO(oldHashUTXORoot); // fabcoin
+validation.cpp:            // If DISCONNECT_UNCLEAN is returned, it means a non-existing UTXO was deleted, or an existing UTXO was
+validation.cpp:            // applied to the UTXO set. However, as both writing a UTXO and deleting a UTXO are idempotent operations,
+validation.cpp:            // the result is still a version of the UTXO set with the effects of that block undone.
