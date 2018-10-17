@@ -4298,7 +4298,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
     // Check timestamp
     //if (block.IsProofOfStake() && block.GetBlockTime() > FutureDrift(nAdjustedTime)){
     if (block.GetBlockTime() > nAdjustedTime + std::min(consensusParams.MaxFutureBlockTime, MAX_FUTURE_BLOCK_TIME)){
-        LogPrintf(" Debug block.GetBlockTime()=%d nAdjustedTime=%d MAX_FUTURE_BLOCK_TIME=%d MaxFutureBlockTime=%d futureDrift=%d", block.GetBlockTime(), nAdjustedTime, MAX_FUTURE_BLOCK_TIME, consensusParams.MaxFutereBlockTime, FutureDrift(nAdjustedTime) );
+        LogPrintf(" Debug block.GetBlockTime()=%d nAdjustedTime=%d MAX_FUTURE_BLOCK_TIME=%d MaxFutureBlockTime=%d futureDrift=%d", block.GetBlockTime(), nAdjustedTime, MAX_FUTURE_BLOCK_TIME, consensusParams.MaxFutureBlockTime, FutureDrift(nAdjustedTime) );
         return state.Invalid(false, REJECT_INVALID, "time-too-new", "block timestamp too far in the future");
     }
 

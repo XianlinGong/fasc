@@ -1943,9 +1943,8 @@ UniValue gettxoutset(const JSONRPCRequest& request)
             {
                 for( const CTxDestination addr: addresses )
                 {
-                    //strUtxo << coin.nHeight << ", " << CFabcoinAddress(addr).ToString() << ", " << coin.out.nValue ;
-
-                    strUtxo << coin.nHeight << ", " << key.hash.ToString() << ", " << key.n << ", " << CFabcoinAddress(addr).ToString() << ", " << coin.out.nValue ;
+                    //strUtxo << coin.nHeight << ", " << key.hash.ToString() << ", " << key.n << ", " << CFabcoinAddress(addr).ToString() << ", " << coin.out.nValue ;
+                    strUtxo << coin.nHeight << ", " << key.hash.ToString() << ", " << key.n << ", " << EncodeDestination(addr) << ", " << coin.out.nValue  << ", " << coin.fCoinBase;
                     ret.push_back(strUtxo.str());
                 }
             }

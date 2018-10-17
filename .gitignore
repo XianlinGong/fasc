@@ -1,13 +1,30 @@
 *.tar.gz
 
+.vs/
+.vscode/
+
+test/config.ini
+test/fasc/tmp*.sr
+test/fasc02/tmp*.sr
+
+
+src/cpp-ethereum/deps/src/cryptopp-stamp/download-cryptopp.cmake
+src/cpp-ethereum/deps/src/cryptopp-stamp/extract-cryptopp.cmake
+src/cpp-ethereum/deps/src/jsoncpp-stamp/download-jsoncpp.cmake
+src/cpp-ethereum/deps/src/jsoncpp-stamp/extract-jsoncpp.cmake
+src/cpp-ethereum/deps/src/secp256k1-stamp/download-secp256k1.cmake
+src/cpp-ethereum/deps/src/secp256k1-stamp/extract-secp256k1.cmake
+src/cpp-ethereum/deps/tmp/cryptopp-cfgcmd.txt
+src/cpp-ethereum/deps/tmp/jsoncpp-cfgcmd.txt
+
 *.exe
-src/bitcoin
-src/bitcoind
-src/bitcoin-cli
-src/bitcoin-tx
-src/test/test_bitcoin
-src/test/test_bitcoin_fuzzy
-src/qt/test/test_bitcoin-qt
+src/fabcoin
+src/fabcoind
+src/fabcoin-cli
+src/fabcoin-tx
+src/test/test_fabcoin
+src/qt/test/test_fabcoin-qt
+src/test/test_fabcoin_fuzzy
 
 # autoreconf
 Makefile.in
@@ -30,8 +47,8 @@ config.log
 config.status
 configure
 libtool
-src/config/bitcoin-config.h
-src/config/bitcoin-config.h.in
+src/config/fabcoin-config.h
+src/config/fabcoin-config.h.in
 src/config/stamp-h1
 share/setup.nsi
 share/qt/Info.plist
@@ -43,12 +60,6 @@ src/qt/moc_*.cpp
 src/qt/forms/ui_*.h
 
 src/qt/test/moc*.cpp
-
-src/qt/bitcoin-qt.config
-src/qt/bitcoin-qt.creator
-src/qt/bitcoin-qt.creator.user
-src/qt/bitcoin-qt.files
-src/qt/bitcoin-qt.includes
 
 .deps
 .dirstamp
@@ -62,6 +73,7 @@ src/qt/bitcoin-qt.includes
 *.o
 *.o-*
 *.patch
+.fabcoin
 *.a
 *.pb.cc
 *.pb.h
@@ -80,13 +92,13 @@ src/qt/bitcoin-qt.includes
 # Compilation and Qt preprocessor part
 *.qm
 Makefile
-bitcoin-qt
-Bitcoin-Qt.app
-background.tiff*
+fabcoin-qt
+Fabcoin-Qt.app
 
 # Unit-tests
 Makefile.test
-bitcoin-qt_test
+fabcoin-qt_test
+src/test/buildenv.py
 
 # Resources cpp
 qrc_*.cpp
@@ -99,7 +111,7 @@ build
 *.gcno
 *.gcda
 /*.info
-test_bitcoin.coverage/
+test_fabcoin.coverage/
 total.coverage/
 coverage_percent.txt
 
@@ -107,24 +119,17 @@ coverage_percent.txt
 linux-coverage-build
 linux-build
 win32-build
-test/config.ini
-test/cache/*
+qa/pull-tester/run-fabcoind-for-test.sh
+qa/pull-tester/tests_config.py
+qa/pull-tester/cache/*
+qa/pull-tester/test.*/*
+qa/tmp
+cache/
+share/FabcoindComparisonTool.jar
 
 !src/leveldb*/Makefile
 
 /doc/doxygen/
 
-libbitcoinconsensus.pc
+libfabcoinconsensus.pc
 contrib/devtools/split-debug.sh
-.cproject
-.project
-.settings/language.settings.xml
-src/qtum-cli
-src/qtum-tx
-src/qtumd
-src/bench/bench_qtum
-src/qt/qtum-qt
-src/qt/test/test_qtum-qt
-src/test/buildenv.py
-src/test/test_qtum
-src/test/test_qtum_fuzzy
